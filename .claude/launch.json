@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "expomanage",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server@14.1.1", "public", "-p", "8080", "-c-1"],
+      "runtimeExecutable": "ruby",
+      "runtimeArgs": ["-run", "-e", "httpd", "/Users/macuser/Downloads/ExpoManage/public", "-p", "8080"],
       "port": 8080
     }
   ]

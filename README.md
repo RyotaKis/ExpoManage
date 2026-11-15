@@ -51,11 +51,15 @@ Ne copiez **jamais** la clé `service_role` / `secret` dans le front.
 
 ## Lancer en local
 
+Depuis le dossier du projet, avec Ruby (déjà présent sur macOS, aucune licence à accepter) :
+
 ```bash
-cd public && python3 -m http.server 8080
+ruby -run -e httpd public -p 8080
 ```
 
-Puis ouvrir http://localhost:8080
+Puis ouvrez http://localhost:8080. Faites `Ctrl+C` pour arrêter.
+
+> `python3` sur macOS passe par les outils Xcode et demande d'accepter leur licence (`sudo xcodebuild -license accept`). Ruby évite cette étape.
 
 ## Règles métier garanties par la base
 - **Prix figé** : le tarif en vigueur le jour de la demande est copié dans la demande.
