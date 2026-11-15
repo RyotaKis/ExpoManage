@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fènou HIGBÉ · Exposants</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <header class="topbar"><div class="container"><a class="brand" href="/">Fènou <span>HIGBÉ</span></a></div></header>
+  <main class="container narrow stack">
+    <h1>Espace exposants</h1>
+    <p class="muted">Page provisoire : le portail est en construction.</p>
+    <div id="etat" class="alert">Test de la connexion à Supabase…</div>
+  </main>
+  <script type="module">
+    import { sb } from '/assets/js/app.js';
+    const etat = document.getElementById('etat');
+    const { data, error } = await sb.from('familles').select('nom').order('ordre');
+    if (error) { etat.className = 'alert erreur'; etat.textContent = 'Supabase injoignable : ' + error.message; }
+    else { etat.className = 'alert ok'; etat.textContent = 'Supabase connecté. Familles : ' + data.map(f => f.nom).join(', '); }
+  </script>
+</body>
+</html>
