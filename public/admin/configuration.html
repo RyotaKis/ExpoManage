@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configuration · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container wide stack">
+    <div class="row between">
+      <h1 style="margin:0">Configuration</h1>
+      <label style="min-width:240px">Édition <select id="edition"></select></label>
+    </div>
+    <div class="onglets" role="tablist">
+      <button role="tab" data-onglet="edition" aria-selected="true">Édition et paiement</button>
+      <button role="tab" data-onglet="tarifs" aria-selected="false">Tarifs</button>
+      <button role="tab" data-onglet="contrats" aria-selected="false">Contrat d'exploitation</button>
+      <button role="tab" data-onglet="categories" aria-selected="false">Catégories</button>
+    </div>
+    <div id="zone"></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { exigerAdmin } from '/assets/js/layout.js';
+    import { selecteurEdition } from '/assets/js/admin-commun.js';
+    import { $, $$, esc, fcfa, date, dateHeure, dialogue, toast, rendreContrat, aujourdhui } from '/assets/js/ui.js';
+
+    await exigerAdmin('super_admin');
+    let onglet = 'edition';
+    const sel = await selecteurEdition($('#edition'), { onChange: () => afficher() });
+    $$('[data-onglet]').forEach((b) => b.addEventListener('click', () => {
+      $$('[data-onglet]').forEach((x) => x.setAttribute('aria-selected', x === b));
+      onglet = b.dataset.onglet; afficher();
+    }));
+
+    const STATUTS = { brouillon: 'Brouillon (invisible)', ouverte: 'Inscriptions ouvertes', fermee: 'Inscriptions fermées', terminee: 'Terminée' };
+    const edition = async () => (await api.editions()).find((e) => e.id === sel.valeur());
+    const recharger = async (msg) => { if (msg) toast(msg, 'ok'); await afficher(); };
+
+    function formEdition(e = {}) {
+      return `
+        <label>Nom <input name="nom" value="${esc(e.nom || '')}" placeholder="Fènou HIGBÉ 2027"></label>
+        <div class="form-grid two">
+          <label>Préfixe des n° de demande <span class="hint">ex. FH27 → FH27-0001</span><input name="prefixe" value="${esc(e.prefixe || '')}"></label>
+          <label>Statut <select name="statut">${Object.entries(STATUTS).map(([k, v]) => `<option value="${k}" ${k === (e.statut || 'brouillon') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+          <label>Début <input name="date_debut" type="date" value="${e.date_debut || ''}"></label>
+          <label>Fin <input name="date_fin" type="date" value="${e.date_fin || ''}"></label>
+        </div>
+        <label>Lieu <input name="lieu" value="${esc(e.lieu || '')}"></label>
+        <label>Instructions de paiement <span class="hint">Affichées aux exposants : numéros Mobile Money, RIB… Une ligne commençant par « - » fait une liste.</span>
+          <textarea name="instructions_paiement" rows="7">${esc(e.instructions_paiement || '')}</textarea></label>`;
+    }
+    const lireEdition = (f) => ({ nom: f.nom.value.trim(), prefixe: f.prefixe.value, statut: f.statut.value, date_debut: f.date_debut.value,
+      date_fin: f.date_fin.value, lieu: f.lieu.value.trim(), instructions_paiement: f.instructions_paiement.value.trim() });
+
+    const VUES = {
+      async edition() {
+        const e = await edition();
+        return `
+          <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+            <section class="card stack">
+              <div class="row between"><h2 style="margin:0">${esc(e.nom)}</h2><span class="badge" data-s="${e.statut === 'ouverte' ? 'validee' : ''}">${STATUTS[e.statut]}</span></div>
+              <dl class="dl"><dt>Dates</dt><dd>du ${date(e.date_debut)} au ${date(e.date_fin)}</dd>
+                <dt>Lieu</dt><dd>${esc(e.lieu || '—')}</dd><dt>Préfixe</dt><dd>${esc(e.prefixe)} (${e.dernier_numero} demande(s) numérotée(s))</dd></dl>
+              <div class="actions"><button class="btn secondary sm" data-act="modifier-edition">Modifier</button>
+                <button class="btn secondary sm" data-act="nouvelle-edition">+ Nouvelle édition</button></div>
+            </section>
+            <section class="card stack">
+              <h2 style="margin:0">Sites</h2>
+              <p class="small muted" style="margin:0">Un seul site : le choix est masqué aux exposants. Plusieurs sites : chaque site a ses tarifs.</p>
+              <ul style="margin:0">${e.sites.map((s) => `<li>${esc(s.nom)} <button class="btn secondary sm" data-site="${s.id}">Renommer</button></li>`).join('')}</ul>
+              <div><button class="btn secondary sm" data-act="nouveau-site">+ Ajouter un site</button></div>
+            </section>
+          </div>
+          <section class="card stack">
+            <h2 style="margin:0">Instructions de paiement affichées aux exposants</h2>
+            <div>${e.instructions_paiement ? rendreContrat(e.instructions_paiement) : '<p class="muted">Aucune instruction.</p>'}</div>
+          </section>`;
+      },
+
+      async tarifs() {
+        const e = await edition();
+        const [tarifs, { familles, categories }] = await Promise.all([api.listeTarifs(e.id), api.catalogue()]);
+        const jour = aujourdhui();
+        return `
+          <div class="row between"><p class="muted" style="margin:0">Le tarif appliqué est celui en vigueur le jour de la demande. Il est ensuite figé dans la demande :
+            modifier un tarif ne change jamais les demandes existantes.</p>
+            <button class="btn" data-act="nouveau-tarif">+ Ajouter un tarif</button></div>
+          ${e.sites.map((s) => `
+            ${e.sites.length > 1 ? `<h2>${esc(s.nom)}</h2>` : ''}
+            <div class="table-wrap"><table>
+              <thead><tr><th>Catégorie</th><th>Libellé</th><th>Période</th><th class="num">Prix / stand</th><th></th></tr></thead>
+              <tbody>${familles.map((f) => categories.filter((c) => c.famille_id === f.id).map((c) => {
+                const ts = tarifs.filter((t) => t.site_id === s.id && t.categorie_id === c.id);
+                return ts.length ? ts.map((t, i) => `<tr>
+                  ${i ? '<td></td>' : `<td rowspan="1"><strong>${esc(c.nom)}</strong><br><span class="small muted">${esc(f.nom)}</span></td>`}
+                  <td>${esc(t.libelle)} ${t.date_debut <= jour && jour <= t.date_fin ? '<span class="badge" data-s="validee">En vigueur</span>' : ''}</td>
+                  <td class="small">${date(t.date_debut)} → ${date(t.date_fin)}</td><td class="num">${fcfa(t.prix_unitaire)}</td>
+                  <td><div class="actions"><button class="btn secondary sm" data-tarif="${t.id}">Modifier</button>
+                    <button class="btn secondary sm" data-suppr-tarif="${t.id}" title="Supprimer">✕</button></div></td></tr>`).join('')
+                  : `<tr><td><strong>${esc(c.nom)}</strong><br><span class="small muted">${esc(f.nom)}</span></td><td colspan="4" class="muted small">Aucun tarif : catégorie non proposée.</td></tr>`;
+              }).join('')).join('')}</tbody></table></div>`).join('')}`;
+      },
+
+      async contrats() {
+        const e = await edition();
+        const cs = await api.listeContrats(e.id);
+        const enVigueur = await api.contratEnVigueur(e.id);
+        return `
+          <div class="row between"><p class="muted" style="margin:0">Une version publiée ne se modifie plus. Pour changer le contrat, créez une nouvelle version puis publiez-la :
+            les nouvelles demandes devront l'accepter, les anciennes gardent la version acceptée.</p>
+            <button class="btn" data-act="nouveau-contrat">+ Nouvelle version</button></div>
+          ${cs.map((c) => `<section class="card stack">
+            <div class="row between"><h3 style="margin:0">Version ${c.version} · ${esc(c.titre)}</h3>
+              ${c.id === enVigueur?.id ? '<span class="badge" data-s="validee">En vigueur</span>' : c.publie_le ? '<span class="badge">Archivée</span>' : '<span class="badge" data-s="en_attente">Brouillon</span>'}</div>
+            <p class="small muted" style="margin:0">${c.publie_le ? `Publiée le ${dateHeure(c.publie_le)} · acceptée ${c.nb_acceptations} fois` : 'Non publiée'}</p>
+            <details><summary>Lire</summary><div class="contrat" style="margin-top:8px">${rendreContrat(c.contenu)}</div></details>
+            ${c.publie_le ? '' : `<div class="actions"><button class="btn secondary sm" data-contrat="${c.id}">Modifier</button>
+              <button class="btn sm" data-publier="${c.id}">Publier cette version</button></div>`}
+          </section>`).join('') || '<div class="card vide">Aucun contrat.</div>'}`;
+      },
+
+      async categories() {
+        const { familles, categories } = await api.catalogue();
+        return `
+          <div class="row between"><p class="muted" style="margin:0">Une catégorie désactivée n'est plus proposée aux exposants.</p>
+            <button class="btn" data-act="nouvelle-categorie">+ Ajouter une catégorie</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Famille</th><th>Catégorie</th><th>Surface</th><th>Description</th><th>Statut</th><th></th></tr></thead>
+          <tbody>${familles.map((f) => categories.filter((c) => c.famille_id === f.id).map((c) => `<tr>
+            <td>${esc(f.nom)}</td><td><strong>${esc(c.nom)}</strong></td><td>${c.surface_m2 ? c.surface_m2 + ' m²' : '—'}</td>
+            <td class="small">${esc(c.description || '')}</td><td>${c.actif ? 'Active' : '<span class="muted">Désactivée</span>'}</td>
+            <td><button class="btn secondary sm" data-categorie="${c.id}">Modifier</button></td></tr>`).join('')).join('')}</tbody></table></div>`;
+      },
+    };
+
+    async function afficher() {
+      $('#zone').innerHTML = await VUES[onglet]();
+      brancher();
+    }
+
+    async function dialogueTarif(t = {}) {
+      const e = await edition();
+      const { familles, categories } = await api.catalogue();
+      return dialogue({ titre: t.id ? 'Modifier le tarif' : 'Nouveau tarif', corps: `
+        ${e.sites.length > 1 ? `<label>Site <select name="site_id">${e.sites.map((s) => `<option value="${s.id}" ${s.id === t.site_id ? 'selected' : ''}>${esc(s.nom)}</option>`).join('')}</select></label>`
+          : `<input type="hidden" name="site_id" value="${e.sites[0].id}">`}
+        <label>Catégorie <select name="categorie_id">${familles.map((f) => `<optgroup label="${esc(f.nom)}">${categories.filter((c) => c.famille_id === f.id)
+          .map((c) => `<option value="${c.id}" ${c.id === t.categorie_id ? 'selected' : ''}>${esc(c.nom)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        <div class="form-grid two">
+          <label>Libellé <input name="libelle" value="${esc(t.libelle || 'Tarif normal')}" placeholder="Tarif préférentiel, Tarif normal…"></label>
+          <label>Prix par stand (FCFA) <input name="prix" type="number" min="0" step="1" value="${t.prix_unitaire ?? ''}"></label>
+          <label>Du <input name="date_debut" type="date" value="${t.date_debut || aujourdhui()}"></label>
+          <label>Au <input name="date_fin" type="date" value="${t.date_fin || e.date_debut}"></label>
+        </div>`,
+        soumettre: (f) => api.enregistrerTarif({ ...(t.id ? { id: t.id } : {}), edition_id: e.id, site_id: f.site_id.value,
+          categorie_id: f.categorie_id.value, libelle: f.libelle.value.trim(), prix_unitaire: f.prix.value === '' ? NaN : Number(f.prix.value),
+          date_debut: f.date_debut.value, date_fin: f.date_fin.value }) });
+    }
+
+    async function dialogueContrat(c = null) {
+      const e = await edition();
+      const base = c || (await api.contratEnVigueur(e.id));
+      return dialogue({ titre: c ? `Modifier le brouillon (version ${c.version})` : 'Nouvelle version du contrat', corps: `
+        <label>Titre <input name="titre" value="${esc(base?.titre || `Contrat d'exploitation des stands — ${e.nom}`)}"></label>
+        <label>Texte du contrat <span class="hint">« # » titre, « ## » article, ligne vide entre paragraphes, « - » pour les listes</span>
+          <textarea name="contenu" rows="16" style="font-family:ui-monospace,monospace;font-size:.9rem">${esc(base?.contenu || '')}</textarea></label>`,
+        soumettre: (f) => api.enregistrerContrat({ ...(c ? { id: c.id, version: c.version } : {}), edition_id: e.id,
+          titre: f.titre.value.trim(), contenu: f.contenu.value }) });
+    }
+
+    function brancher() {
+      const clic = (s, fn) => $$(s).forEach((b) => b.addEventListener('click', () => fn(b)));
+      clic('[data-act]', async (b) => {
+        const e = await edition();
+        const a = b.dataset.act;
+        if (a === 'modifier-edition' && await dialogue({ titre: 'Modifier l\'édition', corps: formEdition(e),
+          soumettre: (f) => api.enregistrerEdition({ id: e.id, ...lireEdition(f) }) })) recharger('Édition enregistrée.');
+        if (a === 'nouvelle-edition') {
+          let creee;
+          if (await dialogue({ titre: 'Nouvelle édition', corps: formEdition({ instructions_paiement: e.instructions_paiement }),
+            soumettre: async (f) => { creee = await api.enregistrerEdition(lireEdition(f)); } })) {
+            localStorage.setItem('expomanage-admin-edition', creee.id); location.reload();
+          }
+        }
+        if (a === 'nouveau-site' && await dialogue({ titre: 'Nouveau site', corps: '<label>Nom du site <input name="nom" placeholder="Sèmè, Grand Marché…"></label>',
+          soumettre: (f) => api.enregistrerSite({ edition_id: e.id, nom: f.nom.value.trim(), ordre: e.sites.length + 1 }) })) recharger('Site ajouté.');
+        if (a === 'nouveau-tarif' && await dialogueTarif()) recharger('Tarif enregistré.');
+        if (a === 'nouveau-contrat' && await dialogueContrat()) recharger('Brouillon enregistré. Publiez-le pour qu\'il s\'applique.');
+        if (a === 'nouvelle-categorie') dialogueCategorie();
+      });
+      clic('[data-site]', async (b) => {
+        const s = (await edition()).sites.find((x) => x.id === b.dataset.site);
+        if (await dialogue({ titre: 'Renommer le site', corps: `<label>Nom <input name="nom" value="${esc(s.nom)}"></label>`,
+          soumettre: (f) => api.enregistrerSite({ ...s, nom: f.nom.value.trim() }) })) recharger('Site renommé.');
+      });
+      clic('[data-tarif]', async (b) => {
+        const t = (await api.listeTarifs(sel.valeur())).find((x) => x.id === b.dataset.tarif);
+        if (await dialogueTarif(t)) recharger('Tarif enregistré.');
+      });
+      clic('[data-suppr-tarif]', async (b) => {
+        if (await dialogue({ titre: 'Supprimer ce tarif ?', bouton: 'Supprimer', danger: true,
+          corps: '<p>Les demandes déjà faites gardent leur prix.</p>', soumettre: () => api.supprimerTarif(b.dataset.supprTarif) })) recharger('Tarif supprimé.');
+      });
+      clic('[data-contrat]', async (b) => {
+        const c = (await api.listeContrats(sel.valeur())).find((x) => x.id === b.dataset.contrat);
+        if (await dialogueContrat(c)) recharger('Brouillon enregistré.');
+      });
+      clic('[data-publier]', async (b) => {
+        if (await dialogue({ titre: 'Publier cette version ?', bouton: 'Publier',
+          corps: '<p>Elle deviendra le contrat en vigueur : toutes les nouvelles demandes devront l\'accepter. Elle ne pourra plus être modifiée.</p>',
+          soumettre: () => api.publierContrat(b.dataset.publier) })) recharger('Contrat publié.');
+      });
+      clic('[data-categorie]', (b) => dialogueCategorie(b.dataset.categorie));
+    }
+
+    async function dialogueCategorie(id) {
+      const { familles, categories } = await api.catalogue();
+      const c = categories.find((x) => x.id === id) || { actif: true };
+      if (await dialogue({ titre: id ? 'Modifier la catégorie' : 'Nouvelle catégorie', corps: `
+        <label>Famille <select name="famille_id">${familles.map((f) => `<option value="${f.id}" ${f.id === c.famille_id ? 'selected' : ''}>${esc(f.nom)}</option>`).join('')}</select></label>
+        <div class="form-grid two">
+          <label>Nom <input name="nom" value="${esc(c.nom || '')}"></label>
+          <label>Surface (m²) <span class="hint">facultatif</span><input name="surface" type="number" min="0" value="${c.surface_m2 ?? ''}"></label>
+        </div>
+        <label>Description <input name="description" value="${esc(c.description || '')}"></label>
+        <label>Ordre d'affichage <input name="ordre" type="number" min="1" value="${c.ordre || 1}"></label>
+        <label class="check"><input type="checkbox" name="actif" ${c.actif ? 'checked' : ''}> <span>Proposée aux exposants</span></label>`,
+        soumettre: (f) => api.enregistrerCategorie({ ...(id ? { id } : {}), famille_id: f.famille_id.value, nom: f.nom.value.trim(),
+          surface_m2: f.surface.value, description: f.description.value.trim() || null, ordre: f.ordre.value, actif: f.actif.checked }) })) recharger('Catégorie enregistrée.');
+    }
+
+    await afficher();
+  </script>
+</body>
+</html>

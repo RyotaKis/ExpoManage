@@ -13,6 +13,8 @@ public/                      ← racine du site (ce dossier est mis en ligne)
   assets/css/app.css         styles communs
   index.html, inscription.html, connexion.html
   espace/                    espace exposant (demandes, nouvelle demande, détail + paiement, profil)
+  admin/                     administration : tableau de bord, paiements, demandes, exposants,
+                             configuration, utilisateurs, journal (entrée : /admin/connexion.html)
   assets/js/config.js        mode (local / supabase), adresse et clé publique Supabase
   assets/js/api.js           point d'entrée unique des données
   assets/js/api-local.js     implémentation locale (navigateur)

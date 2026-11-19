@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demandes · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container wide stack">
+    <div class="row between"><h1 style="margin:0">Demandes de stands</h1><div id="export"></div></div>
+    <form class="filtres card" id="filtres">
+      <label>Recherche <input name="q" type="search" placeholder="Nom, entreprise, téléphone, n°"></label>
+      <label>Édition <select name="edition_id" id="edition"></select></label>
+      <label>Catégorie <select name="categorie_id" id="categorie"><option value="">Toutes</option></select></label>
+      <label>Statut <select name="statut">
+        <option value="">Tous</option><option value="en_attente_paiement">En attente de paiement</option>
+        <option value="validee">Validée</option><option value="attribuee">Stand attribué</option><option value="annulee">Annulée</option>
+      </select></label>
+      <label>Paiement <select name="statut_financier">
+        <option value="">Tous</option><option value="impaye">Avec reste à payer</option><option value="non_paye">Non payé</option>
+        <option value="partiel">Partiellement payé</option><option value="solde">Soldé</option><option value="trop_percu">Trop-perçu</option>
+      </select></label>
+    </form>
+    <p class="small muted" id="resume"></p>
+    <div id="liste"></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { exigerAdmin } from '/assets/js/layout.js';
+    import { selecteurEdition, COLONNES_DEMANDES, montantReste } from '/assets/js/admin-commun.js';
+    import { $, $$, esc, fcfa, date, badge, param, lireFormulaire, boutonsExport, brancherExport, exporter } from '/assets/js/ui.js';
+
+    await exigerAdmin();
+    const form = $('#filtres');
+    await selecteurEdition($('#edition'), { toutes: true, onChange: afficher });
+    const { familles, categories } = await api.catalogue();
+    $('#categorie').insertAdjacentHTML('beforeend', familles.map((f) => `<optgroup label="${esc(f.nom)}">${
+      categories.filter((c) => c.famille_id === f.id).map((c) => `<option value="${c.id}">${esc(c.nom)}</option>`).join('')}</optgroup>`).join(''));
+    if (param('statut')) form.statut.value = param('statut');
+    if (param('financier')) form.statut_financier.value = param('financier');
+
+    let lignes = [];
+    $('#export').innerHTML = boutonsExport();
+    brancherExport($('#export'), (format) => exporter('demandes', COLONNES_DEMANDES, lignes, format));
+
+    let minuterie;
+    form.addEventListener('input', () => { clearTimeout(minuterie); minuterie = setTimeout(afficher, 200); });
+    form.addEventListener('submit', (e) => e.preventDefault());
+
+    async function afficher() {
+      lignes = await api.listeDemandes(lireFormulaire(form));
+      const actives = lignes.filter((d) => d.statut !== 'annulee');
+      const s = (k) => actives.reduce((t, d) => t + Math.max(0, d[k]), 0);
+      $('#resume').textContent = `${lignes.length} demande(s) · ${actives.reduce((t, d) => t + d.quantite, 0)} stand(s) · `
+        + `dû ${fcfa(s('montant_du'))} · payé ${fcfa(s('total_paye'))} · reste ${fcfa(s('reste_a_payer'))}`;
+      $('#liste').innerHTML = lignes.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>N°</th><th>Exposant</th><th>Catégorie</th><th class="num">Stands</th><th class="num">Dû</th>
+          <th class="num">Payé</th><th class="num">Reste</th><th>Statut</th><th>Stand(s)</th></tr></thead>
+        <tbody>${lignes.map((d) => `<tr class="lien" data-href="/admin/demande.html?id=${d.id}">
+          <td><strong>${esc(d.numero)}</strong><br><span class="small muted">${date(d.created_at)}</span></td>
+          <td>${esc(d.entreprise)}<br><span class="small muted">${esc(d.exposant_nom)}</span></td>
+          <td>${esc(d.categorie_nom)}</td><td class="num">${d.quantite}</td>
+          <td class="num">${fcfa(d.montant_du)}</td><td class="num">${fcfa(d.total_paye)}${d.montant_en_attente ? `<br><span class="small muted">+${fcfa(d.montant_en_attente)} à valider</span>` : ''}</td>
+          <td class="num">${montantReste(d)}</td>
+          <td>${badge('demande', d.statut)}<br>${badge('financier', d.statut_financier)}</td>
+          <td>${esc(d.stands_attribues || '—')}</td></tr>`).join('')}
+        </tbody></table></div>` : '<div class="card vide">Aucune demande ne correspond.</div>';
+      $$('#liste [data-href]').forEach((tr) => tr.addEventListener('click', () => (location.href = tr.dataset.href)));
+    }
+    await afficher();
+  </script>
+</body>
+</html>

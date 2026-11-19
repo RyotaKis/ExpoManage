@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fiche exposant · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container wide stack">
+    <a href="/admin/exposants.html" class="small">← Répertoire des exposants</a>
+    <div id="zone"><p class="muted">Chargement…</p></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { exigerAdmin } from '/assets/js/layout.js';
+    import { montantReste } from '/assets/js/admin-commun.js';
+    import { champsExposant, lireExposant } from '/assets/js/admin-exposant.js';
+    import { $, $$, esc, fcfa, date, dateHeure, badge, param, afficherTelephone, dialogue, toast } from '/assets/js/ui.js';
+
+    const admin = await exigerAdmin();
+    const id = param('id');
+
+    async function afficher() {
+      let x;
+      try { x = await api.ficheExposant(id); } catch (e) { $('#zone').innerHTML = `<div class="alert erreur">${esc(e.message)}</div>`; return; }
+      const { exposant: e, demandes } = x;
+      const logo = e.logo_path && (await api.urlFichier(e.logo_path));
+      const actives = demandes.filter((d) => d.statut !== 'annulee');
+      const s = (k) => actives.reduce((t, d) => t + Math.max(0, d[k]), 0);
+      const champ = (label, v) => (v ? `<dt>${label}</dt><dd>${esc(v)}</dd>` : '');
+
+      $('#zone').innerHTML = `
+        <div class="row between">
+          <div class="row">
+            ${logo ? `<img class="logo-apercu" src="${logo}" alt="Logo">` : ''}
+            <div><h1 style="margin:0">${esc(e.entreprise)}</h1>
+              <p class="muted" style="margin:0">${esc(e.nom)} ${esc(e.prenoms)} · ${esc(afficherTelephone(e.telephone))}</p></div>
+          </div>
+          <div class="actions">
+            <button class="btn secondary" data-action="modifier">Modifier la fiche</button>
+            <button class="btn" data-action="demande">+ Demande pour cet exposant</button>
+          </div>
+        </div>
+
+        <div class="solde">
+          <div class="kpi"><div class="label">Demandes</div><div class="value">${demandes.length}</div></div>
+          <div class="kpi"><div class="label">Total dû</div><div class="value">${fcfa(s('montant_du'))}</div></div>
+          <div class="kpi"><div class="label">Payé (validé)</div><div class="value">${fcfa(s('total_paye'))}</div></div>
+          <div class="kpi reste"><div class="label">Reste à payer</div><div class="value">${fcfa(s('reste_a_payer'))}</div></div>
+        </div>
+
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+          <section class="card stack">
+            <h2 style="margin:0">Informations</h2>
+            <dl class="dl">
+              ${champ('WhatsApp', e.whatsapp)}${champ('Autre téléphone', e.telephone_secondaire)}${champ('E-mail', e.email)}
+              ${champ('IFU', e.ifu)}${champ('RCCM', e.rccm)}${champ('Secteur', e.secteur)}${champ('Ville', e.ville)}${champ('Adresse', e.adresse)}
+              ${champ('Présentation', e.description)}${champ('Notes internes', e.notes_admin)}
+              <dt>Inscrit le</dt><dd>${dateHeure(e.created_at)}</dd>
+              <dt>Statut</dt><dd>${e.actif ? 'Actif' : 'Désactivé'}</dd>
+            </dl>
+          </section>
+          <section class="card stack">
+            <h2 style="margin:0">Accès en ligne</h2>
+            ${e.a_un_compte
+              ? `<p style="margin:0">L'exposant se connecte avec son numéro <strong>${esc(afficherTelephone(e.telephone))}</strong>.</p>
+                 <div class="actions"><button class="btn secondary sm" data-action="mdp">Réinitialiser le mot de passe</button></div>`
+              : `<p style="margin:0" class="muted">Pas encore de compte en ligne. L'exposant peut s'inscrire avec le numéro
+                 ${esc(afficherTelephone(e.telephone))} : il retrouvera cette fiche.</p>`}
+            <div class="actions">
+              <button class="btn secondary sm" data-action="actif">${e.actif ? 'Désactiver' : 'Réactiver'} l'exposant</button>
+              ${admin.role === 'super_admin' && !demandes.length ? '<button class="btn danger sm" data-action="supprimer">Supprimer</button>' : ''}
+            </div>
+          </section>
+        </div>
+
+        <section class="stack">
+          <h2 style="margin:0">Historique des demandes et participations</h2>
+          ${demandes.length ? `<div class="table-wrap"><table>
+            <thead><tr><th>N°</th><th>Édition</th><th>Catégorie</th><th class="num">Stands</th><th class="num">Dû</th><th class="num">Payé</th>
+              <th class="num">Reste</th><th>Statut</th><th>Stand(s)</th></tr></thead>
+            <tbody>${demandes.map((d) => `<tr class="lien" data-href="/admin/demande.html?id=${d.id}">
+              <td><strong>${esc(d.numero)}</strong><br><span class="small muted">${date(d.created_at)}</span></td>
+              <td>${esc(d.edition_nom)}</td><td>${esc(d.categorie_nom)}</td><td class="num">${d.quantite}</td>
+              <td class="num">${fcfa(d.montant_du)}</td><td class="num">${fcfa(d.total_paye)}</td><td class="num">${montantReste(d)}</td>
+              <td>${badge('demande', d.statut)}</td><td>${esc(d.stands_attribues || '—')}</td></tr>`).join('')}
+            </tbody></table></div>` : '<p class="muted">Aucune demande.</p>'}
+        </section>`;
+
+      $$('[data-href]').forEach((tr) => tr.addEventListener('click', () => (location.href = tr.dataset.href)));
+      $$('[data-action]').forEach((b) => b.addEventListener('click', () => actions[b.dataset.action](e)));
+    }
+
+    const actions = {
+      async modifier(e) {
+        if (await dialogue({ titre: 'Modifier la fiche', corps: champsExposant(e, { telephoneModifiable: true }),
+          soumettre: (f) => api.majExposant(e.id, lireExposant(f), f.logo.files[0]) })) { toast('Fiche enregistrée.', 'ok'); await afficher(); }
+      },
+      async mdp(e) {
+        if (await dialogue({ titre: 'Réinitialiser le mot de passe', bouton: 'Réinitialiser', corps: `
+          <p style="margin:0">Choisissez un mot de passe provisoire et communiquez-le à l'exposant. Il pourra le changer depuis son profil.</p>
+          <label>Nouveau mot de passe <span class="hint">6 caractères minimum</span><input name="mdp" autocomplete="off"></label>`,
+          soumettre: (f) => api.reinitialiserMotDePasse(e.id, f.mdp.value) })) toast('Mot de passe réinitialisé.', 'ok');
+      },
+      async actif(e) {
+        try { await api.majExposant(e.id, { ...e, actif: !e.actif }); toast(e.actif ? 'Exposant désactivé.' : 'Exposant réactivé.', 'ok'); await afficher(); }
+        catch (err) { toast(err.message, 'erreur'); }
+      },
+      async supprimer(e) {
+        if (await dialogue({ titre: 'Supprimer cet exposant ?', bouton: 'Supprimer définitivement', danger: true,
+          corps: '<p>La fiche et l\'accès en ligne seront supprimés. Cette action est irréversible.</p>',
+          soumettre: () => api.supprimerExposant(e.id) })) location.href = '/admin/exposants.html';
+      },
+      async demande(e) {
+        const [ed] = await api.editionsOuvertes();
+        if (!ed) return toast('Aucune édition ouverte.', 'erreur');
+        const [tarifs, contrat] = await Promise.all([api.tarifsEnVigueur(ed.id), api.contratEnVigueur(ed.id)]);
+        if (!tarifs.length || !contrat) return toast('Pas de tarif ou de contrat en vigueur pour cette édition.', 'erreur');
+        const plusieursSites = new Set(tarifs.map((t) => t.site_id)).size > 1;
+        let creee;
+        const ok = await dialogue({ titre: `Nouvelle demande · ${ed.nom}`, bouton: 'Créer la demande', corps: `
+          <label>Catégorie <select name="tarif">${tarifs.map((t) => `<option value="${t.tarif_id}">${plusieursSites ? esc(t.site_nom) + ' · ' : ''}${esc(t.categorie_nom)} — ${fcfa(t.prix_unitaire)}</option>`).join('')}</select></label>
+          <label>Nombre de stands <input name="quantite" type="number" min="1" value="1"></label>
+          <label class="check"><input type="checkbox" name="accord"> <span>L'exposant a pris connaissance du contrat d'exploitation (version ${contrat.version}) et l'a accepté.</span></label>`,
+          soumettre: async (f) => {
+            const t = tarifs.find((x) => x.tarif_id === f.tarif.value);
+            if (!f.accord.checked) throw new Error('Confirmez l\'acceptation du contrat par l\'exposant.');
+            creee = await api.creerDemande({ edition_id: ed.id, site_id: t.site_id, categorie_id: t.categorie_id,
+              quantite: parseInt(f.quantite.value, 10), contrat_id: contrat.id, consentement: true, exposant_id: e.id });
+          } });
+        if (ok) location.href = `/admin/demande.html?id=${creee.id}`;
+      },
+    };
+
+    await afficher();
+  </script>
+</body>
+</html>

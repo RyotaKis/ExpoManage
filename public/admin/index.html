@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tableau de bord · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container wide stack">
+    <div class="row between">
+      <h1 style="margin:0">Tableau de bord</h1>
+      <label style="min-width:240px">Édition <select id="edition"></select></label>
+    </div>
+    <div id="zone"><p class="muted">Chargement…</p></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { exigerAdmin } from '/assets/js/layout.js';
+    import { selecteurEdition } from '/assets/js/admin-commun.js';
+    import { $, esc, fcfa, nombre, LIBELLES } from '/assets/js/ui.js';
+
+    await exigerAdmin();
+    const sel = await selecteurEdition($('#edition'), { onChange: afficher });
+
+    async function afficher() {
+      const t = await api.tableauDeBord(sel.valeur());
+      const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+      const kpi = (label, valeur, sous = '', lien = '') =>
+        `<${lien ? `a href="${lien}"` : 'div'} class="kpi"${lien ? ' style="text-decoration:none;color:inherit"' : ''}>
+          <div class="label">${label}</div><div class="value">${valeur}</div>${sous ? `<div class="small muted">${sous}</div>` : ''}
+        </${lien ? 'a' : 'div'}>`;
+
+      $('#zone').innerHTML = `
+        <div class="stack">
+          ${t.paiements_en_attente ? `<a class="alert" href="/admin/paiements.html" style="display:block;text-decoration:none">
+            <strong>${t.paiements_en_attente} paiement(s) en attente de validation</strong> (${fcfa(t.montant_en_attente)}) → les traiter</a>` : ''}
+
+          <h2>Finances</h2>
+          <div class="solde">
+            ${kpi('Montant total attendu', fcfa(t.montant_attendu))}
+            ${kpi('Encaissé (validé)', fcfa(t.montant_encaisse), `${pct(t.montant_encaisse, t.montant_attendu)} % de l'attendu`)}
+            ${kpi('Reste à recouvrer', fcfa(t.montant_restant), '', '/admin/demandes.html?financier=impaye')}
+            ${kpi('Paiements à valider', nombre(t.paiements_en_attente), fcfa(t.montant_en_attente), '/admin/paiements.html')}
+          </div>
+          <div class="barre" title="Taux d'encaissement"><span style="width:${pct(t.montant_encaisse, t.montant_attendu)}%"></span></div>
+
+          <h2>Exposants et demandes</h2>
+          <div class="solde">
+            ${kpi('Exposants enregistrés', nombre(t.exposants_total), `${t.nouveaux_7j} nouveau(x) sur 7 jours`, '/admin/exposants.html')}
+            ${kpi('Exposants de l\'édition', nombre(t.exposants_edition))}
+            ${kpi('Demandes reçues', nombre(t.demandes), '', '/admin/demandes.html')}
+            ${kpi('En attente de paiement', nombre(t.demandes_par_statut.en_attente_paiement), '', '/admin/demandes.html?statut=en_attente_paiement')}
+            ${kpi('Validées', nombre(t.demandes_par_statut.validee + t.demandes_par_statut.attribuee),
+              `dont ${t.demandes_par_statut.attribuee} avec stand attribué`, '/admin/demandes.html?statut=validee')}
+            ${kpi('Stands demandés / attribués', `${nombre(t.stands_demandes)} / ${nombre(t.stands_attribues)}`)}
+          </div>
+
+          <h2>Répartition par catégorie</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Famille</th><th>Catégorie</th><th class="num">Exposants</th><th class="num">Demandes</th>
+              <th class="num">Stands demandés</th><th class="num">Stands attribués</th><th class="num">Attendu</th><th class="num">Encaissé</th></tr></thead>
+            <tbody>${t.par_categorie.map((c) => `<tr>
+              <td>${esc(c.famille)}</td><td>${esc(c.categorie)}</td><td class="num">${c.exposants}</td><td class="num">${c.demandes}</td>
+              <td class="num">${c.stands_demandes}</td><td class="num">${c.stands_attribues}</td>
+              <td class="num">${fcfa(c.attendu)}</td><td class="num">${fcfa(c.encaisse)}</td></tr>`).join('')}
+            </tbody>
+            <tfoot><tr><th colspan="2">Total</th><th class="num">${t.exposants_edition}</th><th class="num">${t.demandes - t.demandes_par_statut.annulee}</th>
+              <th class="num">${t.stands_demandes}</th><th class="num">${t.stands_attribues}</th>
+              <th class="num">${fcfa(t.montant_attendu)}</th><th class="num">${fcfa(t.montant_encaisse)}</th></tr></tfoot>
+          </table></div>
+          <p class="small muted">Les demandes annulées (${t.demandes_par_statut.annulee}) ne sont pas comptées dans les montants.</p>
+        </div>`;
+    }
+    await afficher();
+  </script>
+</body>
+</html>

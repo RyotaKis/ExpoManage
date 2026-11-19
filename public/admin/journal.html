@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Journal · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container wide stack">
+    <h1>Journal des opérations</h1>
+    <p class="muted">Toutes les créations, modifications et suppressions, avec leur auteur. Ce journal ne peut pas être modifié depuis l'application.
+      Les 500 dernières opérations sont affichées.</p>
+    <div class="filtres card">
+      <label>Type <select id="table">
+        <option value="">Tout</option><option value="paiements">Paiements</option><option value="demandes">Demandes</option>
+        <option value="attributions">Attributions</option><option value="exposants">Exposants</option><option value="remboursements">Remboursements</option>
+        <option value="tarifs">Tarifs</option><option value="contrats">Contrats</option><option value="editions">Éditions</option>
+        <option value="admins">Utilisateurs</option></select></label>
+    </div>
+    <div id="liste"></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { exigerAdmin } from '/assets/js/layout.js';
+    import { $, esc, dateHeure } from '/assets/js/ui.js';
+
+    await exigerAdmin('super_admin');
+    const ACTIONS = { INSERT: 'Création', UPDATE: 'Modification', DELETE: 'Suppression' };
+    const IGNORES = ['updated_at', 'created_at', 'montant_brut', 'id', 'mdp_hash'];
+
+    function resume(j) {
+      const o = j.apres || j.avant || {};
+      const titre = o.numero || o.code_stand || o.entreprise || o.nom || o.libelle || o.titre || (o.montant ? `${o.montant} FCFA` : '');
+      if (j.action !== 'UPDATE') return titre;
+      const diff = Object.keys(j.apres || {}).filter((k) => !IGNORES.includes(k) && JSON.stringify(j.avant?.[k]) !== JSON.stringify(j.apres[k]))
+        .map((k) => `${k} : ${j.avant?.[k] ?? '—'} → ${j.apres[k] ?? '—'}`);
+      return [titre, ...diff].filter(Boolean).join(' · ');
+    }
+
+    async function afficher() {
+      const lignes = await api.journalAudit({ table: $('#table').value });
+      $('#liste').innerHTML = lignes.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Auteur</th><th>Type</th><th>Action</th><th>Détail</th></tr></thead>
+        <tbody>${lignes.map((j) => `<tr><td class="small" style="white-space:nowrap">${dateHeure(j.created_at)}</td><td>${esc(j.auteur)}</td>
+          <td>${esc(j.table_nom)}</td><td>${ACTIONS[j.action] || esc(j.action)}</td><td class="small">${esc(resume(j))}</td></tr>`).join('')}
+        </tbody></table></div>` : '<div class="card vide">Aucune opération.</div>';
+    }
+    $('#table').addEventListener('change', afficher);
+    await afficher();
+  </script>
+</body>
+</html>

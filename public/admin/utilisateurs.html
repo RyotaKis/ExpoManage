@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Utilisateurs · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container wide stack">
+    <div class="row between"><h1 style="margin:0">Utilisateurs de l'administration</h1>
+      <button class="btn" id="btn-nouveau">+ Ajouter un utilisateur</button></div>
+    <div class="card small">
+      <strong>Super administrateur</strong> : tout, y compris configuration (éditions, tarifs, contrats), remises, modification des paiements validés,
+      suppressions, utilisateurs et journal.<br>
+      <strong>Gestionnaire</strong> : exposants, demandes, validation des paiements, attributions, exports et tableau de bord.
+    </div>
+    <div id="liste"></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { exigerAdmin } from '/assets/js/layout.js';
+    import { $, $$, esc, date, dialogue, toast } from '/assets/js/ui.js';
+
+    const moi = await exigerAdmin('super_admin');
+    const ROLES = { super_admin: 'Super administrateur', gestionnaire: 'Gestionnaire' };
+
+    async function afficher() {
+      const admins = await api.listeAdmins();
+      $('#liste').innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Statut</th><th>Depuis</th><th></th></tr></thead>
+        <tbody>${admins.map((a) => `<tr>
+          <td><strong>${esc(a.nom)}</strong>${a.user_id === moi.user_id ? ' <span class="muted small">(vous)</span>' : ''}</td>
+          <td>${esc(a.email)}</td><td>${ROLES[a.role]}</td><td>${a.actif ? 'Actif' : '<span class="muted">Désactivé</span>'}</td>
+          <td class="small">${date(a.created_at)}</td>
+          <td>${a.user_id === moi.user_id ? '' : `<div class="actions">
+            <button class="btn secondary sm" data-role="${a.user_id}" data-val="${a.role === 'super_admin' ? 'gestionnaire' : 'super_admin'}">
+              Passer ${a.role === 'super_admin' ? 'gestionnaire' : 'super admin'}</button>
+            <button class="btn secondary sm" data-actif="${a.user_id}" data-val="${!a.actif}">${a.actif ? 'Désactiver' : 'Réactiver'}</button></div>`}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+      $$('[data-role]').forEach((b) => b.addEventListener('click', () => maj(b.dataset.role, { role: b.dataset.val })));
+      $$('[data-actif]').forEach((b) => b.addEventListener('click', () => maj(b.dataset.actif, { actif: b.dataset.val === 'true' })));
+    }
+
+    async function maj(id, champs) {
+      try { await api.majAdmin(id, champs); toast('Utilisateur mis à jour.', 'ok'); await afficher(); }
+      catch (e) { toast(e.message, 'erreur'); }
+    }
+
+    $('#btn-nouveau').addEventListener('click', async () => {
+      if (await dialogue({ titre: 'Nouvel utilisateur', bouton: 'Créer', corps: `
+        <label>Nom <input name="nom"></label>
+        <label>E-mail <span class="hint">identifiant de connexion</span><input name="email" type="email" autocomplete="off"></label>
+        <label>Rôle <select name="role"><option value="gestionnaire">Gestionnaire</option><option value="super_admin">Super administrateur</option></select></label>
+        <label>Mot de passe provisoire <span class="hint">8 caractères minimum, à transmettre à la personne</span><input name="mdp" autocomplete="new-password"></label>`,
+        soumettre: (f) => api.creerAdmin({ nom: f.nom.value, email: f.email.value, role: f.role.value, mot_de_passe: f.mdp.value }) })) {
+        toast('Utilisateur créé.', 'ok'); await afficher();
+      }
+    });
+
+    await afficher();
+  </script>
+</body>
+</html>

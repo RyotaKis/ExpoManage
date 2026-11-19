@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demande · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container wide stack">
+    <a href="/admin/demandes.html" class="small">← Toutes les demandes</a>
+    <div id="zone"><p class="muted">Chargement…</p></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { exigerAdmin, rafraichirCompteurs } from '/assets/js/layout.js';
+    import { montantReste } from '/assets/js/admin-commun.js';
+    import { $, $$, esc, fcfa, date, dateHeure, badge, param, LIBELLES, dialogue, toast, aujourdhui, rendreContrat, afficherTelephone } from '/assets/js/ui.js';
+
+    const admin = await exigerAdmin();
+    const estSuper = admin.role === 'super_admin';
+    const id = param('id');
+    const { familles, categories } = await api.catalogue();
+    const optionsMoyen = (v = '') => Object.entries(LIBELLES.moyen).map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
+
+    async function afficher() {
+      let x;
+      try { x = await api.detailDemande(id); } catch (e) { $('#zone').innerHTML = `<div class="alert erreur">${esc(e.message)}</div>`; return; }
+      const { demande: d, paiements, remboursements, attributions, acceptation, contrat } = x;
+      const annulee = d.statut === 'annulee';
+      const historique = estSuper ? await api.journalAudit({ ligne_id: d.id }) : [];
+
+      $('#zone').innerHTML = `
+        <div class="row between">
+          <div><h1 style="margin:0">Demande ${esc(d.numero)}</h1>
+            <p class="muted" style="margin:0">${esc(d.edition_nom)}${d.site_nom !== 'Site principal' ? ' · ' + esc(d.site_nom) : ''} · créée le ${dateHeure(d.created_at)}</p></div>
+          <div class="row">${badge('demande', d.statut)} ${badge('financier', d.statut_financier)}</div>
+        </div>
+
+        <div class="solde">
+          <div class="kpi"><div class="label">Montant dû</div><div class="value">${fcfa(d.montant_du)}</div>
+            ${d.remise_montant ? `<div class="small muted">après remise de ${fcfa(d.remise_montant)}</div>` : ''}</div>
+          <div class="kpi"><div class="label">Payé (validé)</div><div class="value">${fcfa(d.total_paye)}</div></div>
+          <div class="kpi reste"><div class="label">Reste à payer</div><div class="value">${montantReste(d)}</div></div>
+          <div class="kpi"><div class="label">À valider</div><div class="value">${fcfa(d.montant_en_attente)}</div></div>
+        </div>
+
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+          <section class="card stack">
+            <div class="row between"><h2 style="margin:0">Demande</h2>
+              <div class="actions">
+                ${!annulee ? '<button class="btn secondary sm" data-action="modifier">Modifier</button>' : ''}
+                ${estSuper && !annulee ? '<button class="btn secondary sm" data-action="remise">Remise</button>' : ''}
+              </div></div>
+            <dl class="dl">
+              <dt>Exposant</dt><dd><a href="/admin/exposant.html?id=${d.exposant_id}">${esc(d.entreprise)}</a><br>
+                <span class="muted small">${esc(d.exposant_nom)} · ${esc(afficherTelephone(d.telephone))}</span></dd>
+              <dt>Catégorie</dt><dd>${esc(d.famille_nom)} · ${esc(d.categorie_nom)}</dd>
+              <dt>Stands</dt><dd>${d.quantite}</dd>
+              <dt>Prix unitaire</dt><dd>${fcfa(d.prix_unitaire)} <span class="small muted">(${esc(d.tarif_libelle)})</span></dd>
+              <dt>Montant brut</dt><dd>${fcfa(d.montant_brut)}</dd>
+              ${d.remise_montant ? `<dt>Remise</dt><dd>− ${fcfa(d.remise_montant)} <span class="small muted">(${esc(d.remise_motif)})</span></dd>` : ''}
+              ${d.note_exposant ? `<dt>Note de l'exposant</dt><dd>${esc(d.note_exposant)}</dd>` : ''}
+              ${d.notes_admin ? `<dt>Notes internes</dt><dd>${esc(d.notes_admin)}</dd>` : ''}
+              ${annulee ? `<dt>Annulée</dt><dd>${esc(d.motif_annulation)}</dd>` : ''}
+            </dl>
+            <div class="actions">
+              ${annulee ? '<button class="btn secondary sm" data-action="retablir">Rétablir la demande</button>'
+                : '<button class="btn secondary sm" data-action="annuler">Annuler la demande</button>'}
+              ${estSuper && !paiements.length ? '<button class="btn danger sm" data-action="supprimer">Supprimer</button>' : ''}
+            </div>
+          </section>
+
+          <section class="card stack">
+            <h2 style="margin:0">Stands attribués <span class="muted small">(${d.nb_attribues} / ${d.quantite})</span></h2>
+            ${attributions.length ? `<ul class="stack" style="padding:0;list-style:none;margin:0">${attributions.map((a) => `
+              <li class="row between"><span><strong>${esc(a.code_stand)}</strong>${a.zone ? ` <span class="muted small">· ${esc(a.zone)}</span>` : ''}
+                <br><span class="small muted">le ${dateHeure(a.created_at)}</span></span>
+                <button class="btn secondary sm" data-retirer="${a.id}">Retirer</button></li>`).join('')}</ul>`
+              : '<p class="muted" style="margin:0">Aucun stand attribué.</p>'}
+            ${!annulee && d.nb_attribues < d.quantite ? `
+              <form id="form-attrib" class="row" novalidate style="align-items:end">
+                <label style="flex:1">Code du stand <span class="hint">tel qu'il figure sur le plan, ex. C12</span><input name="code" required></label>
+                <label style="flex:1">Zone <span class="hint">facultatif</span><input name="zone"></label>
+                <button class="btn" type="submit">Attribuer</button>
+              </form>
+              ${d.total_paye <= 0 ? '<p class="small muted" style="margin:0">Aucun paiement validé pour l\'instant : l\'attribution reste possible.</p>' : ''}` : ''}
+          </section>
+        </div>
+
+        <section class="stack">
+          <div class="row between"><h2 style="margin:0">Paiements</h2>
+            <div class="actions">
+              <button class="btn sm" data-action="paiement">Enregistrer un paiement</button>
+              ${d.total_paye > 0 ? '<button class="btn secondary sm" data-action="remboursement">Remboursement</button>' : ''}
+            </div></div>
+          ${paiements.length || remboursements.length ? `<div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Moyen</th><th class="num">Montant</th><th>Statut</th><th>Origine</th><th>Justificatif</th><th></th></tr></thead>
+            <tbody>${paiements.map((p) => `<tr>
+              <td>${date(p.date_paiement)}<br><span class="small muted">saisi le ${dateHeure(p.created_at)}</span></td>
+              <td>${esc(LIBELLES.moyen[p.moyen])}${p.reference ? `<br><span class="small muted">Réf. ${esc(p.reference)}</span>` : ''}
+                ${p.commentaire ? `<br><span class="small muted">${esc(p.commentaire)}</span>` : ''}</td>
+              <td class="num">${fcfa(p.montant)}</td>
+              <td>${badge('paiement', p.statut)}${p.motif_rejet ? `<br><span class="small">${esc(p.motif_rejet)}</span>` : ''}
+                ${p.valide_le ? `<br><span class="small muted">le ${dateHeure(p.valide_le)}</span>` : ''}</td>
+              <td class="small">${p.origine === 'admin' ? 'Administration' : 'Exposant'}</td>
+              <td>${p.justificatif_path ? `<button class="btn secondary sm" data-fichier="${esc(p.justificatif_path)}">Voir</button>` : '—'}</td>
+              <td><div class="actions">
+                ${p.statut === 'en_attente' ? `<button class="btn ok sm" data-valider="${p.id}">Valider</button><button class="btn danger sm" data-rejeter="${p.id}">Rejeter</button>` : ''}
+                ${p.statut !== 'valide' || estSuper ? `<button class="btn secondary sm" data-modifier="${p.id}">Modifier</button>` : ''}
+                ${p.statut === 'rejete' && estSuper ? `<button class="btn secondary sm" data-attente="${p.id}">Remettre en attente</button>` : ''}
+                ${estSuper ? `<button class="btn secondary sm" data-suppr="${p.id}" title="Supprimer">✕</button>` : ''}
+              </div></td></tr>`).join('')}
+              ${remboursements.map((r) => `<tr><td>${date(r.date_remboursement)}</td><td>Remboursement · ${esc(LIBELLES.moyen[r.moyen])}</td>
+                <td class="num">− ${fcfa(r.montant)}</td><td colspan="4" class="small">${esc(r.motif)}</td></tr>`).join('')}
+            </tbody></table></div>` : '<p class="muted">Aucun paiement.</p>'}
+        </section>
+
+        <section class="card stack">
+          <h2 style="margin:0">Contrat accepté</h2>
+          ${acceptation ? `<dl class="dl">
+              <dt>Version</dt><dd>${contrat.version} · ${esc(contrat.titre)}</dd>
+              <dt>Acceptée le</dt><dd>${dateHeure(acceptation.accepte_le)}</dd>
+              <dt>Consentement</dt><dd>Case « J'ai lu et j'accepte » cochée</dd>
+              <dt>Adresse IP</dt><dd>${esc(acceptation.adresse_ip || '—')}</dd>
+              <dt>Navigateur</dt><dd class="small" style="font-weight:400">${esc(acceptation.navigateur || '—')}</dd>
+            </dl>
+            <details><summary>Lire la version acceptée</summary><div class="contrat" style="margin-top:8px">${rendreContrat(contrat.contenu)}</div></details>`
+            : '<p class="muted">Aucune acceptation enregistrée.</p>'}
+        </section>
+
+        ${estSuper && historique.length ? `<section class="stack"><h2 style="margin:0">Historique des modifications</h2>
+          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Par</th><th>Action</th><th>Changements</th></tr></thead>
+          <tbody>${historique.map((j) => `<tr><td class="small">${dateHeure(j.created_at)}</td><td>${esc(j.auteur)}</td><td>${esc(j.action)}</td>
+            <td class="small">${esc(differences(j.avant, j.apres))}</td></tr>`).join('')}</tbody></table></div></section>` : ''}`;
+
+      brancher(d, paiements);
+    }
+
+    function differences(avant, apres) {
+      if (!avant) return 'Création';
+      if (!apres) return 'Suppression';
+      const ignorer = ['updated_at', 'montant_brut'];
+      return Object.keys(apres).filter((k) => !ignorer.includes(k) && JSON.stringify(avant[k]) !== JSON.stringify(apres[k]))
+        .map((k) => `${k} : ${avant[k] ?? '—'} → ${apres[k] ?? '—'}`).join(' · ') || '—';
+    }
+
+    const action = async (promesse, message) => {
+      try { await promesse; if (message) toast(message, 'ok'); await afficher(); rafraichirCompteurs(); }
+      catch (e) { toast(e.message, 'erreur'); }
+    };
+
+    function brancher(d, paiements) {
+      const surClic = (sel, fn) => $$(sel).forEach((b) => b.addEventListener('click', () => fn(b)));
+
+      surClic('[data-fichier]', async (b) => { const u = await api.urlFichier(b.dataset.fichier); u ? window.open(u, '_blank') : toast('Fichier introuvable.', 'erreur'); });
+      surClic('[data-valider]', (b) => action(api.traiterPaiement(b.dataset.valider, 'valide'), 'Paiement validé.'));
+      surClic('[data-attente]', (b) => action(api.traiterPaiement(b.dataset.attente, 'en_attente'), 'Paiement remis en attente.'));
+      surClic('[data-rejeter]', async (b) => {
+        if (await dialogue({ titre: 'Rejeter ce paiement', bouton: 'Rejeter', danger: true,
+          corps: '<label>Motif du rejet <span class="hint">Visible par l\'exposant</span><textarea name="motif" rows="3"></textarea></label>',
+          soumettre: (f) => api.traiterPaiement(b.dataset.rejeter, 'rejete', f.motif.value) })) await afficher();
+      });
+      surClic('[data-suppr]', async (b) => {
+        if (await dialogue({ titre: 'Supprimer ce paiement ?', bouton: 'Supprimer définitivement', danger: true,
+          corps: '<p>Le paiement sera retiré du calcul. La suppression reste tracée dans le journal.</p>',
+          soumettre: () => api.supprimerPaiement(b.dataset.suppr) })) await afficher();
+      });
+      surClic('[data-modifier]', async (b) => {
+        const p = paiements.find((x) => x.id === b.dataset.modifier);
+        if (await dialogue({ titre: 'Modifier le paiement', corps: `
+          <div class="form-grid two">
+            <label>Montant (FCFA) <input name="montant" type="number" min="1" value="${p.montant}"></label>
+            <label>Date <input name="date_paiement" type="date" max="${aujourdhui()}" value="${p.date_paiement}"></label>
+            <label>Moyen <select name="moyen">${optionsMoyen(p.moyen)}</select></label>
+            <label>Référence <input name="reference" value="${esc(p.reference || '')}"></label>
+          </div>
+          <label>Commentaire <textarea name="commentaire" rows="2">${esc(p.commentaire || '')}</textarea></label>`,
+          soumettre: (f) => api.modifierPaiement(p.id, { montant: parseInt(f.montant.value, 10), date_paiement: f.date_paiement.value,
+            moyen: f.moyen.value, reference: f.reference.value, commentaire: f.commentaire.value }) })) { toast('Paiement modifié.', 'ok'); await afficher(); }
+      });
+      surClic('[data-retirer]', (b) => action(api.retirerAttribution(b.dataset.retirer), 'Stand retiré.'));
+
+      $('#form-attrib')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        action(api.attribuer(d.id, e.target.code.value, e.target.zone.value), 'Stand attribué.');
+      });
+
+      surClic('[data-action]', async (b) => {
+        const a = b.dataset.action;
+        if (a === 'paiement') {
+          if (await dialogue({ titre: 'Enregistrer un paiement', corps: `
+            <div class="form-grid two">
+              <label>Montant (FCFA) <input name="montant" type="number" min="1" value="${Math.max(0, d.reste_a_payer - d.montant_en_attente) || ''}"></label>
+              <label>Date <input name="date_paiement" type="date" max="${aujourdhui()}" value="${aujourdhui()}"></label>
+              <label>Moyen <select name="moyen"><option value="">Choisir…</option>${optionsMoyen()}</select></label>
+              <label>Référence <input name="reference"></label>
+            </div>
+            <label>Justificatif <span class="hint">facultatif</span><input name="justificatif" type="file" accept="image/png,image/jpeg,image/webp,application/pdf"></label>
+            <label>Commentaire <textarea name="commentaire" rows="2"></textarea></label>
+            <label class="check"><input type="checkbox" name="valider" checked> <span>J'ai constaté la réception de cette somme : le paiement est validé immédiatement.</span></label>`,
+            soumettre: (f) => api.declarerPaiement({ demande_id: d.id, montant: parseInt(f.montant.value, 10), date_paiement: f.date_paiement.value,
+              moyen: f.moyen.value, reference: f.reference.value, commentaire: f.commentaire.value, valider: f.valider.checked }, f.justificatif.files[0]) })) {
+            toast('Paiement enregistré.', 'ok'); await afficher(); rafraichirCompteurs();
+          }
+        }
+        if (a === 'remboursement') {
+          if (await dialogue({ titre: 'Enregistrer un remboursement', corps: `
+            <div class="form-grid two">
+              <label>Montant (FCFA) <input name="montant" type="number" min="1" value="${d.reste_a_payer < 0 ? -d.reste_a_payer : ''}"></label>
+              <label>Date <input name="date" type="date" max="${aujourdhui()}" value="${aujourdhui()}"></label>
+              <label>Moyen <select name="moyen"><option value="">Choisir…</option>${optionsMoyen()}</select></label>
+            </div>
+            <label>Motif <textarea name="motif" rows="2"></textarea></label>`,
+            soumettre: (f) => api.enregistrerRemboursement({ demande_id: d.id, montant: parseInt(f.montant.value, 10),
+              date_remboursement: f.date.value, moyen: f.moyen.value, motif: f.motif.value }) })) { toast('Remboursement enregistré.', 'ok'); await afficher(); }
+        }
+        if (a === 'modifier') {
+          if (await dialogue({ titre: 'Modifier la demande', corps: `
+            <label>Catégorie <select name="categorie_id">${familles.map((f) => `<optgroup label="${esc(f.nom)}">${categories.filter((c) => c.famille_id === f.id)
+              .map((c) => `<option value="${c.id}" ${c.id === d.categorie_id ? 'selected' : ''}>${esc(c.nom)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+            <div class="form-grid two">
+              <label>Nombre de stands <input name="quantite" type="number" min="1" value="${d.quantite}"></label>
+              <label>Prix unitaire (FCFA) <span class="hint">figé à la demande</span><input name="prix_unitaire" type="number" min="0" value="${d.prix_unitaire}"></label>
+            </div>
+            <label>Notes internes <span class="hint">non visibles par l'exposant</span><textarea name="notes_admin" rows="2">${esc(d.notes_admin || '')}</textarea></label>
+            <p class="small muted" style="margin:0">Changer la catégorie ne change pas le prix : ajustez-le si nécessaire. Toute modification est tracée.</p>`,
+            soumettre: (f) => api.majDemande(d.id, { categorie_id: f.categorie_id.value, quantite: parseInt(f.quantite.value, 10),
+              prix_unitaire: parseInt(f.prix_unitaire.value, 10), notes_admin: f.notes_admin.value }) })) { toast('Demande modifiée.', 'ok'); await afficher(); }
+        }
+        if (a === 'remise') {
+          if (await dialogue({ titre: 'Remise ou gratuité', corps: `
+            <label>Montant de la remise (FCFA) <span class="hint">Montant brut : ${fcfa(d.montant_brut)}. Saisissez ${d.montant_brut} pour une gratuité, 0 pour annuler la remise.</span>
+              <input name="remise" type="number" min="0" max="${d.montant_brut}" value="${d.remise_montant}"></label>
+            <label>Motif <input name="motif" value="${esc(d.remise_motif || '')}" placeholder="Partenaire, sponsor, geste commercial…"></label>`,
+            soumettre: (f) => api.majDemande(d.id, { remise_montant: parseInt(f.remise.value, 10) || 0, remise_motif: f.motif.value }) })) {
+            toast('Remise enregistrée.', 'ok'); await afficher();
+          }
+        }
+        if (a === 'annuler') {
+          if (await dialogue({ titre: 'Annuler la demande', bouton: 'Annuler la demande', danger: true,
+            corps: '<label>Motif <textarea name="motif" rows="2"></textarea></label><p class="small muted" style="margin:0">Les paiements restent enregistrés. Pensez au remboursement s\'il y a lieu.</p>',
+            soumettre: (f) => api.annulerDemande(d.id, f.motif.value) })) { toast('Demande annulée.'); await afficher(); }
+        }
+        if (a === 'retablir') action(api.retablirDemande(d.id), 'Demande rétablie.');
+        if (a === 'supprimer') {
+          if (await dialogue({ titre: 'Supprimer la demande ?', bouton: 'Supprimer définitivement', danger: true,
+            corps: '<p>Cette action est irréversible. Préférez l\'annulation si la demande a existé.</p>',
+            soumettre: () => api.supprimerDemande(d.id) })) location.href = '/admin/demandes.html';
+        }
+      });
+    }
+
+    await afficher();
+  </script>
+</body>
+</html>

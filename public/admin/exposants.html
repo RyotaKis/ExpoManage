@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exposants · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container wide stack">
+    <div class="row between">
+      <h1 style="margin:0">Répertoire des exposants</h1>
+      <div class="row"><div id="export"></div><button class="btn" id="btn-nouveau">+ Nouvel exposant</button></div>
+    </div>
+    <div class="filtres card">
+      <label>Recherche <input id="q" type="search" placeholder="Nom, entreprise ou téléphone"></label>
+    </div>
+    <p class="small muted" id="resume"></p>
+    <div id="liste"></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { exigerAdmin } from '/assets/js/layout.js';
+    import { $, $$, esc, fcfa, date, afficherTelephone, dialogue, boutonsExport, brancherExport, exporter } from '/assets/js/ui.js';
+    import { champsExposant, lireExposant } from '/assets/js/admin-exposant.js';
+
+    await exigerAdmin();
+    let lignes = [];
+    $('#export').innerHTML = boutonsExport();
+    brancherExport($('#export'), (format) => exporter('exposants', [
+      ['Entreprise', (e) => e.entreprise], ['Nom', (e) => e.nom], ['Prénoms', (e) => e.prenoms], ['Téléphone', (e) => e.telephone],
+      ['WhatsApp', (e) => e.whatsapp], ['Autre téléphone', (e) => e.telephone_secondaire], ['E-mail', (e) => e.email],
+      ['IFU', (e) => e.ifu], ['RCCM', (e) => e.rccm], ['Ville', (e) => e.ville], ['Adresse', (e) => e.adresse], ['Secteur', (e) => e.secteur],
+      ['Compte en ligne', (e) => (e.a_un_compte ? 'Oui' : 'Non')], ['Inscrit le', (e) => e.created_at.slice(0, 10)],
+      ['Nb demandes', (e) => e.nb_demandes], ['Éditions', (e) => e.editions],
+      ['Montant dû', (e) => e.montant_du], ['Payé', (e) => e.total_paye], ['Reste à payer', (e) => e.reste_a_payer],
+    ], lignes, format));
+
+    let minuterie;
+    $('#q').addEventListener('input', () => { clearTimeout(minuterie); minuterie = setTimeout(afficher, 200); });
+
+    async function afficher() {
+      lignes = await api.listeExposants({ q: $('#q').value });
+      $('#resume').textContent = `${lignes.length} exposant(s)`;
+      $('#liste').innerHTML = lignes.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Entreprise</th><th>Contact</th><th>Téléphone</th><th class="num">Demandes</th><th>Éditions</th>
+          <th class="num">Reste à payer</th><th>Compte</th></tr></thead>
+        <tbody>${lignes.map((e) => `<tr class="lien" data-href="/admin/exposant.html?id=${e.id}">
+          <td><strong>${esc(e.entreprise)}</strong>${e.actif ? '' : ' <span class="badge">Désactivé</span>'}</td>
+          <td>${esc(e.nom)} ${esc(e.prenoms)}</td><td class="small">${esc(afficherTelephone(e.telephone))}</td>
+          <td class="num">${e.nb_demandes}</td><td class="small">${esc(e.editions || '—')}</td>
+          <td class="num">${e.reste_a_payer ? fcfa(e.reste_a_payer) : '—'}</td>
+          <td class="small">${e.a_un_compte ? 'En ligne' : '<span class="muted">Créé par l\'admin</span>'}</td></tr>`).join('')}
+        </tbody></table></div>` : '<div class="card vide">Aucun exposant ne correspond.</div>';
+      $$('#liste [data-href]').forEach((tr) => tr.addEventListener('click', () => (location.href = tr.dataset.href)));
+    }
+
+    $('#btn-nouveau').addEventListener('click', async () => {
+      let cree;
+      const ok = await dialogue({
+        titre: 'Nouvel exposant', bouton: 'Créer', corps: champsExposant({}, { telephoneModifiable: true }) +
+          '<p class="small muted" style="margin:0">L\'exposant pourra ensuite créer son accès en ligne en s\'inscrivant avec ce même numéro : son profil sera retrouvé.</p>',
+        soumettre: async (f) => { cree = await api.creerExposant(lireExposant(f), f.logo.files[0]); },
+      });
+      if (ok) location.href = `/admin/exposant.html?id=${cree.id}`;
+    });
+
+    await afficher();
+  </script>
+</body>
+</html>

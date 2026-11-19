@@ -97,3 +97,71 @@ export function rendreContrat(texte) {
     return `<p>${esc(b).replace(/\n/g, '<br>')}</p>`;
   }).join('');
 }
+
+/* ------------------------------------------------------------------ Dialogue */
+
+// Fenêtre modale avec formulaire. `soumettre(form)` peut lever une erreur : elle s'affiche dans la fenêtre.
+// Renvoie true si le formulaire a été validé.
+export function dialogue({ titre, corps, bouton = 'Enregistrer', danger = false, soumettre }) {
+  return new Promise((resolve) => {
+    const d = document.createElement('dialog');
+    d.className = 'dialogue';
+    d.innerHTML = `<form class="stack" novalidate>
+      <h2>${esc(titre)}</h2>
+      <div class="form-grid">${corps}</div>
+      <div class="alert erreur" data-erreur hidden></div>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn secondary" data-annuler>Annuler</button>
+        <button type="submit" class="btn${danger ? ' danger' : ''}">${esc(bouton)}</button>
+      </div></form>`;
+    document.body.append(d);
+    const form = d.querySelector('form');
+    d.querySelector('[data-annuler]').addEventListener('click', () => d.close());
+    d.addEventListener('close', () => { d.remove(); resolve(d.returnValue === 'ok'); });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const b = form.querySelector('[type=submit]');
+      b.disabled = true;
+      try { await soumettre(form); d.close('ok'); }
+      catch (err) {
+        const z = form.querySelector('[data-erreur]');
+        z.textContent = err.message; z.hidden = false; b.disabled = false;
+      }
+    });
+    d.showModal();
+    form.querySelector('input:not([type=hidden]),select,textarea')?.focus();
+  });
+}
+
+/* ------------------------------------------------------------------ Exports */
+
+// colonnes : [[titre, (ligne) => valeur], …]
+export async function exporter(nomFichier, colonnes, lignes, format = 'xlsx') {
+  const donnees = [colonnes.map((c) => c[0]), ...lignes.map((l) => colonnes.map((c) => c[1](l) ?? ''))];
+  const nom = `${nomFichier}-${aujourdhui()}`;
+  if (format === 'csv') {
+    const q = (v) => (/[";\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+    const csv = '﻿' + donnees.map((r) => r.map(q).join(';')).join('\r\n');
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: nom + '.csv',
+    });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } else {
+    const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm');
+    const ws = XLSX.utils.aoa_to_sheet(donnees);
+    ws['!cols'] = donnees[0].map((_, i) => ({ wch: Math.min(40, Math.max(10, ...donnees.map((r) => String(r[i]).length))) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Données');
+    XLSX.writeFile(wb, nom + '.xlsx');
+  }
+}
+
+// Petit menu « Exporter » : renvoie le HTML ; brancher avec brancherExport()
+export const boutonsExport = () =>
+  `<div class="row"><button type="button" class="btn secondary sm" data-export="xlsx">Exporter Excel</button>
+   <button type="button" class="btn secondary sm" data-export="csv">CSV</button></div>`;
+export function brancherExport(racine, action) {
+  racine.querySelectorAll('[data-export]').forEach((b) =>
+    b.addEventListener('click', () => avecChargement(b, () => action(b.dataset.export)).catch(() => {})));
+}
