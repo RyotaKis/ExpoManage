@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mon profil · Fènou HIGBÉ</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container narrow stack">
+    <h1>Mon profil</h1>
+
+    <form id="form" class="stack" novalidate>
+      <fieldset class="form-grid">
+        <legend>Vous</legend>
+        <div class="form-grid two">
+          <label>Nom <input name="nom" required></label>
+          <label>Prénoms <input name="prenoms" required></label>
+        </div>
+        <label>Numéro de téléphone (identifiant de connexion)
+          <span class="hint">Pour le changer, contactez l'organisation.</span>
+          <input id="telephone" disabled></label>
+        <div class="form-grid two">
+          <label>WhatsApp <input name="whatsapp" type="tel" inputmode="tel"></label>
+          <label>Autre téléphone <input name="telephone_secondaire" type="tel" inputmode="tel"></label>
+        </div>
+        <label>E-mail <input name="email" type="email"></label>
+      </fieldset>
+
+      <fieldset class="form-grid">
+        <legend>Votre activité</legend>
+        <label>Nom de l'entreprise ou de l'activité <input name="entreprise" required></label>
+        <div class="row">
+          <img id="logo" class="logo-apercu" alt="Logo actuel" hidden>
+          <label style="flex:1">Logo <span class="hint">PNG, JPG ou WebP, 2 Mo maximum</span>
+            <input name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        </div>
+        <div class="form-grid two">
+          <label>IFU <input name="ifu"></label>
+          <label>RCCM <input name="rccm"></label>
+          <label>Secteur d'activité <input name="secteur"></label>
+          <label>Ville <input name="ville"></label>
+        </div>
+        <label>Adresse <input name="adresse"></label>
+        <label>Présentation de votre activité <textarea name="description" rows="3"></textarea></label>
+      </fieldset>
+
+      <button class="btn block" type="submit">Enregistrer</button>
+    </form>
+
+    <form id="form-mdp" class="card form-grid" novalidate>
+      <h2>Changer de mot de passe</h2>
+      <label>Mot de passe actuel <input name="ancien" type="password" autocomplete="current-password"></label>
+      <label>Nouveau mot de passe <span class="hint">6 caractères minimum</span>
+        <input name="nouveau" type="password" minlength="6" autocomplete="new-password"></label>
+      <button class="btn secondary" type="submit">Changer le mot de passe</button>
+    </form>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { monterEntete, exigerExposant } from '/assets/js/layout.js';
+    import { $, lireFormulaire, afficherTelephone, avecChargement, toast } from '/assets/js/ui.js';
+
+    const profil = await exigerExposant();
+    monterEntete('exposant');
+    const form = $('#form');
+
+    async function remplir(p) {
+      for (const el of form.elements) if (el.name && el.type !== 'file') el.value = p[el.name] ?? '';
+      $('#telephone').value = afficherTelephone(p.telephone);
+      const u = p.logo_path && (await api.urlFichier(p.logo_path));
+      $('#logo').hidden = !u;
+      if (u) $('#logo').src = u;
+    }
+    await remplir(profil);
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      avecChargement(form.querySelector('[type=submit]'), async () => {
+        const p = await api.majMonProfil(lireFormulaire(form), form.logo.files[0]);
+        form.logo.value = '';
+        await remplir(p);
+        toast('Profil enregistré.', 'ok');
+      }).catch(() => {});
+    });
+
+    const fm = $('#form-mdp');
+    fm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      avecChargement(fm.querySelector('[type=submit]'), async () => {
+        await api.changerMotDePasse(fm.ancien.value, fm.nouveau.value);
+        fm.reset();
+        toast('Mot de passe modifié.', 'ok');
+      }).catch(() => {});
+    });
+  </script>
+</body>
+</html>

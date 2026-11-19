@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion · Fènou HIGBÉ</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container narrow stack">
+    <h1>Connexion</h1>
+    <form id="form" class="card form-grid" novalidate>
+      <label>Numéro de téléphone
+        <input name="telephone" type="tel" inputmode="tel" required autocomplete="tel">
+      </label>
+      <label>Mot de passe
+        <input name="mdp" type="password" required autocomplete="current-password">
+      </label>
+      <div id="erreur" class="alert erreur" hidden></div>
+      <button class="btn block" type="submit">Se connecter</button>
+    </form>
+    <p class="muted small">Mot de passe oublié ? Contactez l'organisation : elle pourra le réinitialiser.</p>
+    <p>Pas encore de compte ? <a href="/inscription.html">Inscrivez-vous</a></p>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { monterEntete } from '/assets/js/layout.js';
+    import { $, param } from '/assets/js/ui.js';
+
+    monterEntete('public');
+    const retour = param('retour');
+    const cible = retour && retour.startsWith('/espace/') ? retour : '/espace/';
+    if (await api.monProfil()) location.replace(cible);
+
+    const form = $('#form'), erreur = $('#erreur');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      erreur.hidden = true;
+      const bouton = form.querySelector('[type=submit]');
+      bouton.disabled = true;
+      try {
+        await api.connexionExposant(form.telephone.value, form.mdp.value);
+        location.href = cible;
+      } catch (err) {
+        erreur.textContent = err.message;
+        erreur.hidden = false;
+        bouton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

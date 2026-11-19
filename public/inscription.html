@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inscription · Fènou HIGBÉ</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container narrow stack">
+    <h1>Inscription exposant</h1>
+    <p class="muted">Déjà exposant lors d'une édition précédente ? <a href="/connexion.html">Connectez-vous</a> : vos informations sont conservées.</p>
+
+    <form id="form" class="stack" novalidate>
+      <fieldset class="form-grid">
+        <legend>Vous</legend>
+        <div class="form-grid two">
+          <label>Nom <input name="nom" required autocomplete="family-name"></label>
+          <label>Prénoms <input name="prenoms" required autocomplete="given-name"></label>
+        </div>
+        <label>Numéro de téléphone
+          <span class="hint">Il vous servira à vous connecter. Exemple : 01 97 00 00 00</span>
+          <input name="telephone" type="tel" inputmode="tel" required autocomplete="tel">
+        </label>
+        <label>Mot de passe <span class="hint">6 caractères minimum</span>
+          <input name="mdp" type="password" required minlength="6" autocomplete="new-password">
+        </label>
+      </fieldset>
+
+      <fieldset class="form-grid">
+        <legend>Votre activité</legend>
+        <label>Nom de l'entreprise ou de l'activité <input name="entreprise" required autocomplete="organization"></label>
+        <label>Logo <span class="hint">Facultatif · PNG, JPG ou WebP, 2 Mo maximum</span>
+          <input name="logo" type="file" accept="image/png,image/jpeg,image/webp">
+        </label>
+      </fieldset>
+
+      <details class="card">
+        <summary><strong>Informations complémentaires</strong> <span class="muted">(facultatif)</span></summary>
+        <div class="form-grid two" style="margin-top:16px">
+          <label>WhatsApp <input name="whatsapp" type="tel" inputmode="tel"></label>
+          <label>Autre téléphone <input name="telephone_secondaire" type="tel" inputmode="tel"></label>
+          <label>E-mail <input name="email" type="email" autocomplete="email"></label>
+          <label>Ville <input name="ville" autocomplete="address-level2"></label>
+          <label>IFU <input name="ifu"></label>
+          <label>RCCM <input name="rccm"></label>
+          <label>Secteur d'activité <input name="secteur"></label>
+          <label>Adresse <input name="adresse" autocomplete="street-address"></label>
+        </div>
+        <label style="margin-top:16px">Présentation de votre activité <textarea name="description" rows="3"></textarea></label>
+      </details>
+
+      <div id="erreur" class="alert erreur" hidden></div>
+      <button class="btn block" type="submit">Créer mon compte</button>
+    </form>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { monterEntete } from '/assets/js/layout.js';
+    import { $, lireFormulaire, telephoneValide } from '/assets/js/ui.js';
+
+    monterEntete('public');
+    if (await api.monProfil()) location.replace('/espace/');
+
+    const form = $('#form'), erreur = $('#erreur');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      erreur.hidden = true;
+      const v = lireFormulaire(form);
+      const probleme =
+        !v.nom || !v.prenoms ? 'Indiquez votre nom et vos prénoms.' :
+        !telephoneValide(v.telephone) ? 'Numéro de téléphone invalide.' :
+        (v.mdp || '').length < 6 ? 'Le mot de passe doit contenir au moins 6 caractères.' :
+        !v.entreprise ? 'Indiquez le nom de votre entreprise ou activité.' : null;
+      if (probleme) { erreur.textContent = probleme; erreur.hidden = false; return; }
+
+      const bouton = form.querySelector('[type=submit]');
+      bouton.disabled = true;
+      try {
+        const { mdp, ...profil } = v;
+        await api.inscription(profil, mdp, form.logo.files[0]);
+        location.href = '/espace/?bienvenue=1';
+      } catch (err) {
+        erreur.textContent = err.message;
+        erreur.hidden = false;
+        bouton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -6,6 +6,12 @@
       "runtimeExecutable": "ruby",
       "runtimeArgs": ["-run", "-e", "httpd", "/Users/macuser/Downloads/ExpoManage/public", "-p", "8080"],
       "port": 8080
+    },
+    {
+      "name": "expomanage-copie",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd /private/tmp/claude-502/-Users-macuser-Downloads-ExpoManage/391dfd12-61d5-47ea-8365-68fdede4e800/scratchpad/site && exec ruby -run -e httpd . -p 8090"],
+      "port": 8090
     }
   ]
 }

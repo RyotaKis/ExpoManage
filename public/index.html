@@ -7,18 +7,66 @@
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-  <header class="topbar"><div class="container"><a class="brand" href="/">Fènou <span>HIGBÉ</span></a></div></header>
-  <main class="container narrow stack">
-    <h1>Espace exposants</h1>
-    <p class="muted">Page provisoire : le portail est en construction.</p>
-    <div id="etat" class="alert">Test de la connexion à Supabase…</div>
+  <main class="container">
+    <section class="hero stack">
+      <h1 id="titre">Devenez exposant au marché Fènou HIGBÉ</h1>
+      <p class="dates" id="dates"></p>
+      <p class="muted">Inscrivez-vous, choisissez votre catégorie de stand, acceptez le contrat d'exploitation et suivez vos paiements depuis votre espace personnel.</p>
+      <div class="row">
+        <a class="btn" href="/inscription.html">Je m'inscris</a>
+        <a class="btn secondary" href="/connexion.html">J'ai déjà un compte</a>
+      </div>
+    </section>
+
+    <section id="tarifs" aria-live="polite"><p class="muted">Chargement des tarifs…</p></section>
+
+    <section class="card" style="margin-top:32px">
+      <h2>Comment ça marche ?</h2>
+      <ol class="stack">
+        <li><strong>Inscrivez-vous</strong> avec votre numéro de téléphone. Vos informations sont conservées pour les éditions suivantes.</li>
+        <li><strong>Faites votre demande</strong> : une catégorie de stand et le nombre de stands souhaités.</li>
+        <li><strong>Acceptez le contrat</strong> d'exploitation des stands.</li>
+        <li><strong>Payez</strong> en une ou plusieurs fois, puis déclarez chaque paiement avec sa capture d'écran.</li>
+        <li><strong>L'organisation attribue votre emplacement</strong>. Vous le retrouvez dans votre espace.</li>
+      </ol>
+    </section>
   </main>
+
   <script type="module">
-    import { sb } from '/assets/js/app.js';
-    const etat = document.getElementById('etat');
-    const { data, error } = await sb.from('familles').select('nom').order('ordre');
-    if (error) { etat.className = 'alert erreur'; etat.textContent = 'Supabase injoignable : ' + error.message; }
-    else { etat.className = 'alert ok'; etat.textContent = 'Supabase connecté. Familles : ' + data.map(f => f.nom).join(', '); }
+    import * as api from '/assets/js/api.js';
+    import { monterEntete } from '/assets/js/layout.js';
+    import { $, esc, fcfa, date } from '/assets/js/ui.js';
+
+    monterEntete('public');
+    const zone = $('#tarifs');
+    const [ed] = await api.editionsOuvertes();
+    if (!ed) {
+      zone.innerHTML = '<div class="alert">Les inscriptions ne sont pas ouvertes pour le moment.</div>';
+    } else {
+      $('#titre').textContent = `Devenez exposant à ${ed.nom}`;
+      $('#dates').textContent = `Du ${date(ed.date_debut)} au ${date(ed.date_fin)}${ed.lieu ? ' · ' + ed.lieu : ''}`;
+      const tarifs = await api.tarifsEnVigueur(ed.id);
+      if (!tarifs.length) {
+        zone.innerHTML = '<div class="alert">Les tarifs seront publiés prochainement.</div>';
+      } else {
+        const plusieursSites = new Set(tarifs.map((t) => t.site_id)).size > 1;
+        const groupes = Map.groupBy
+          ? Map.groupBy(tarifs, (t) => (plusieursSites ? t.site_nom + ' · ' : '') + t.famille_nom)
+          : tarifs.reduce((m, t) => { const k = (plusieursSites ? t.site_nom + ' · ' : '') + t.famille_nom; m.set(k, [...(m.get(k) || []), t]); return m; }, new Map());
+        zone.innerHTML = '<h2>Catégories et tarifs</h2>' + [...groupes].map(([titre, liste]) => `
+          <div class="famille">
+            <h3>${esc(titre)}</h3>
+            <div class="grid">${liste.map((t) => `
+              <div class="card tarif">
+                <strong>${esc(t.categorie_nom)}</strong>
+                ${t.description ? `<span class="muted small">${esc(t.description)}</span>` : ''}
+                <span class="prix">${fcfa(t.prix_unitaire)}</span>
+                <span class="periode">${esc(t.libelle)} · jusqu'au ${date(t.date_fin)}</span>
+              </div>`).join('')}
+            </div>
+          </div>`).join('');
+      }
+    }
   </script>
 </body>
 </html>

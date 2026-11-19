@@ -11,15 +11,27 @@ Front en HTML / CSS / JavaScript vanilla (sans build) + [Supabase](https://supab
 ```
 public/                      ← racine du site (ce dossier est mis en ligne)
   assets/css/app.css         styles communs
-  assets/js/config.js        adresse et clé publique Supabase
-  assets/js/app.js           client Supabase, connexion, formats, utilitaires
+  index.html, inscription.html, connexion.html
+  espace/                    espace exposant (demandes, nouvelle demande, détail + paiement, profil)
+  assets/js/config.js        mode (local / supabase), adresse et clé publique Supabase
+  assets/js/api.js           point d'entrée unique des données
+  assets/js/api-local.js     implémentation locale (navigateur)
+  assets/js/donnees-demo.js  données et comptes de démonstration
+  assets/js/layout.js        en-tête, garde d'accès
+  assets/js/ui.js            formats, libellés, utilitaires
 supabase/migrations/
   001_schema.sql             tables, calculs, règles d'accès, catégories initiales
   002_stockage.sql           espaces de fichiers (logos, justificatifs, contrats)
 docs/                        spécification et planning
 ```
 
-## Installation de Supabase (une seule fois, environ 15 min)
+## Mode local (développement)
+
+Par défaut (`MODE = 'local'` dans `public/assets/js/config.js`), l'application fonctionne **entièrement dans le navigateur**, sans Supabase. Les données sont dans `localStorage` et les fichiers dans IndexedDB, et la couche `api-local.js` applique les mêmes règles que la base. Les comptes de test et les données de démonstration (tarifs et contrat **fictifs**) sont décrits en tête de `public/assets/js/donnees-demo.js`. Le bandeau jaune permet de tout réinitialiser.
+
+Les pages n'appellent que `assets/js/api.js`. Le branchement Supabase consistera à écrire `api-supabase.js` avec les mêmes fonctions, puis à passer `MODE` à `'supabase'`.
+
+## Installation de Supabase (une seule fois, environ 15 min, au moment du branchement)
 
 ### 1. Créer le projet
 1. Créez un compte sur [supabase.com](https://supabase.com), puis **New project**.

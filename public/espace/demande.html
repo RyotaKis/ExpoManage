@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ma demande · Fènou HIGBÉ</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <main class="container stack" style="max-width:860px">
+    <a href="/espace/" class="small">← Mes demandes</a>
+    <div id="zone"><p class="muted">Chargement…</p></div>
+  </main>
+
+  <script type="module">
+    import * as api from '/assets/js/api.js';
+    import { monterEntete, exigerExposant } from '/assets/js/layout.js';
+    import { $, esc, fcfa, date, dateHeure, badge, param, LIBELLES, rendreContrat, aujourdhui, toast } from '/assets/js/ui.js';
+
+    await exigerExposant();
+    monterEntete('exposant');
+    const zone = $('#zone');
+
+    async function afficher() {
+      let x;
+      try { x = await api.detailDemande(param('id')); }
+      catch (e) { zone.innerHTML = `<div class="alert erreur">${esc(e.message)}</div>`; return; }
+      const { demande: d, paiements, remboursements, acceptation, contrat, instructions_paiement } = x;
+      const peutPayer = d.statut !== 'annulee' && d.reste_a_payer - d.montant_en_attente > 0;
+
+      zone.innerHTML = `
+        ${param('nouvelle') ? `<div class="alert ok">Votre demande <strong>${esc(d.numero)}</strong> est enregistrée.
+          Effectuez votre paiement puis déclarez-le ci-dessous : votre demande sera validée dès le premier paiement vérifié.</div>` : ''}
+
+        <div class="row between">
+          <h1 style="margin:0">Demande ${esc(d.numero)}</h1>
+          ${badge('demande', d.statut)}
+        </div>
+
+        <section class="card">
+          <dl class="dl">
+            <dt>Édition</dt><dd>${esc(d.edition_nom)}${d.site_nom !== 'Site principal' ? ' · ' + esc(d.site_nom) : ''}</dd>
+            <dt>Catégorie</dt><dd>${esc(d.famille_nom)} · ${esc(d.categorie_nom)}</dd>
+            <dt>Nombre de stands</dt><dd>${d.quantite}</dd>
+            <dt>Prix unitaire</dt><dd>${fcfa(d.prix_unitaire)} <span class="muted small">(${esc(d.tarif_libelle)})</span></dd>
+            ${d.remise_montant ? `<dt>Remise</dt><dd>− ${fcfa(d.remise_montant)}${d.remise_motif ? ` <span class="muted small">(${esc(d.remise_motif)})</span>` : ''}</dd>` : ''}
+            <dt>Demandée le</dt><dd>${dateHeure(d.created_at)}</dd>
+            <dt>Stand(s) attribué(s)</dt><dd>${d.stands_attribues ? esc(d.stands_attribues) : '<span class="muted">Pas encore attribué</span>'}</dd>
+            ${d.statut === 'annulee' ? `<dt>Annulation</dt><dd>${esc(d.motif_annulation || 'Demande annulée')}</dd>` : ''}
+          </dl>
+        </section>
+
+        <section class="solde">
+          <div class="kpi"><div class="label">Montant total</div><div class="value">${fcfa(d.montant_du)}</div></div>
+          <div class="kpi"><div class="label">Payé (validé)</div><div class="value">${fcfa(d.total_paye)}</div></div>
+          <div class="kpi reste"><div class="label">${d.reste_a_payer < 0 ? 'Trop-perçu' : 'Reste à payer'}</div><div class="value">${fcfa(Math.abs(d.reste_a_payer))}</div></div>
+          ${d.montant_en_attente ? `<div class="kpi"><div class="label">En cours de vérification</div><div class="value">${fcfa(d.montant_en_attente)}</div></div>` : ''}
+        </section>
+
+        <section class="stack">
+          <h2>Mes versements</h2>
+          ${paiements.length || remboursements.length ? `<div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Moyen</th><th class="num">Montant</th><th>Statut</th><th>Justificatif</th></tr></thead>
+            <tbody>
+              ${paiements.map((p) => `<tr>
+                <td>${date(p.date_paiement)}</td>
+                <td>${esc(LIBELLES.moyen[p.moyen])}${p.reference ? `<br><span class="muted small">Réf. ${esc(p.reference)}</span>` : ''}</td>
+                <td class="num">${fcfa(p.montant)}</td>
+                <td>${badge('paiement', p.statut)}${p.motif_rejet ? `<br><span class="small">${esc(p.motif_rejet)}</span>` : ''}</td>
+                <td>${p.justificatif_path ? `<button class="btn secondary sm" data-fichier="${esc(p.justificatif_path)}">Voir</button>` : '—'}</td>
+              </tr>`).join('')}
+              ${remboursements.map((r) => `<tr>
+                <td>${date(r.date_remboursement)}</td><td>Remboursement · ${esc(LIBELLES.moyen[r.moyen])}</td>
+                <td class="num">− ${fcfa(r.montant)}</td><td>${esc(r.motif)}</td><td>—</td></tr>`).join('')}
+            </tbody></table></div>` : '<p class="muted">Aucun versement pour le moment.</p>'}
+        </section>
+
+        ${d.statut !== 'annulee' ? `
+        <section class="card stack" id="payer">
+          <h2>Déclarer un paiement</h2>
+          ${instructions_paiement ? `<details ${paiements.length ? '' : 'open'}><summary><strong>Comment payer ?</strong></summary>
+            <div style="margin-top:8px">${rendreContrat(instructions_paiement)}</div></details>` : ''}
+          ${peutPayer ? '' : '<div class="alert">Le montant restant est déjà couvert par vos paiements (validés ou en cours de vérification).</div>'}
+          <form id="form-paiement" class="form-grid" novalidate>
+            <div class="form-grid two">
+              <label>Montant payé (FCFA)
+                <input name="montant" type="number" min="1" step="1" inputmode="numeric" required
+                  value="${Math.max(0, d.reste_a_payer - d.montant_en_attente) || ''}"></label>
+              <label>Date du paiement <input name="date_paiement" type="date" required max="${aujourdhui()}" value="${aujourdhui()}"></label>
+              <label>Moyen de paiement
+                <select name="moyen" required>
+                  <option value="">Choisir…</option>
+                  ${Object.entries(LIBELLES.moyen).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}
+                </select></label>
+              <label>Référence de la transaction <span class="hint">Facultatif</span><input name="reference"></label>
+            </div>
+            <label>Capture d'écran ou justificatif <span class="hint">Image ou PDF, 5 Mo maximum</span>
+              <input name="justificatif" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required></label>
+            <label>Commentaire <span class="hint">Facultatif</span><textarea name="commentaire" rows="2"></textarea></label>
+            <button class="btn" type="submit">Envoyer pour vérification</button>
+            <p class="small muted" style="margin:0">Le paiement apparaîtra « En attente de validation » jusqu'à sa vérification par l'organisation.</p>
+          </form>
+        </section>` : ''}
+
+        <section class="card stack">
+          <h2>Contrat accepté</h2>
+          ${acceptation ? `<p class="small">Version ${contrat.version} acceptée le <strong>${dateHeure(acceptation.accepte_le)}</strong>.</p>
+            <details><summary>Lire le contrat</summary><div class="contrat" style="margin-top:8px">${rendreContrat(contrat.contenu)}</div></details>`
+            : '<p class="muted">Aucune acceptation enregistrée.</p>'}
+        </section>`;
+
+      zone.querySelectorAll('[data-fichier]').forEach((b) => b.addEventListener('click', async () => {
+        const u = await api.urlFichier(b.dataset.fichier);
+        u ? window.open(u, '_blank') : toast('Fichier introuvable.', 'erreur');
+      }));
+
+      const form = $('#form-paiement');
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const bouton = form.querySelector('[type=submit]');
+        bouton.disabled = true;
+        try {
+          await api.declarerPaiement({
+            demande_id: d.id, montant: parseInt(form.montant.value, 10), date_paiement: form.date_paiement.value,
+            moyen: form.moyen.value, reference: form.reference.value, commentaire: form.commentaire.value,
+          }, form.justificatif.files[0]);
+          toast('Paiement envoyé. Il sera vérifié par l\'organisation.', 'ok');
+          history.replaceState(null, '', `?id=${d.id}`);
+          await afficher();
+        } catch (err) {
+          toast(err.message, 'erreur');
+          bouton.disabled = false;
+        }
+      });
+    }
+
+    await afficher();
+  </script>
+</body>
+</html>
