@@ -65,6 +65,12 @@
     async function afficher() {
       const editionId = sel.valeur();
       const ed = sel.editions.find((e) => e.id === editionId);
+      if (!ed) {
+        $('#zone').innerHTML = `<div class="card vide">${ic('calendrier')}<p><strong>Aucune édition configurée.</strong><br>
+          Créez l'édition, ses tarifs et son contrat pour ouvrir les inscriptions.</p>
+          <a class="btn" href="/admin/configuration.html">${ic('reglages')} Aller à la configuration</a></div>`;
+        return;
+      }
       const [t, demandes, paiements] = await Promise.all([
         api.tableauDeBord(editionId), api.listeDemandes({ edition_id: editionId }), api.listePaiements({ edition_id: editionId }),
       ]);

@@ -130,7 +130,7 @@ export async function connexionAdmin(email, motDePasse) {
   const { data, error } = await sb.auth.signInWithPassword({ email: String(email || '').trim().toLowerCase(), password: motDePasse || '' });
   if (error) throw new Error(/Invalid login/i.test(error.message) ? 'E-mail ou mot de passe incorrect.' : message(error));
   const a = await q(sb.from('admins').select('user_id').eq('user_id', data.user.id).eq('actif', true).maybeSingle());
-  if (!a) { await sb.auth.signOut(); throw new Error('E-mail ou mot de passe incorrect.'); }
+  if (!a) { await sb.auth.signOut(); throw new Error('Mot de passe correct, mais ce compte n\'a pas (ou plus) les droits d\'administration.'); }
 }
 
 export async function deconnexion() { await sb.auth.signOut(); }

@@ -144,7 +144,10 @@
     };
 
     async function afficher() {
-      $('#zone').innerHTML = await VUES[onglet]();
+      $('#zone').innerHTML = onglet !== 'categories' && !(await edition())
+        ? `<div class="card vide"><p><strong>Aucune édition pour l'instant.</strong><br>Commencez par créer l'édition du marché :
+            les tarifs et le contrat s'y rattachent.</p><button class="btn" data-act="nouvelle-edition">+ Créer la première édition</button></div>`
+        : await VUES[onglet]();
       brancher();
     }
 
@@ -187,7 +190,7 @@
           soumettre: (f) => api.enregistrerEdition({ id: e.id, ...lireEdition(f) }) })) recharger('Édition enregistrée.');
         if (a === 'nouvelle-edition') {
           let creee;
-          if (await dialogue({ titre: 'Nouvelle édition', corps: formEdition({ instructions_paiement: e.instructions_paiement }),
+          if (await dialogue({ titre: 'Nouvelle édition', corps: formEdition({ instructions_paiement: e?.instructions_paiement }),
             soumettre: async (f) => { creee = await api.enregistrerEdition(lireEdition(f)); } })) {
             localStorage.setItem('expomanage-admin-edition', creee.id); location.reload();
           }
