@@ -431,3 +431,11 @@ a.alert .ic { color: var(--orange); }
   .galerie figure:first-child { grid-row: span 2; }
 }
 @media (max-width: 859px) { .galerie figure:first-child { grid-column: span 2; aspect-ratio: 16 / 9; } }
+
+/* --------------------------------------------------------------- Application installable */
+.installer-app { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: max(18px, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px 12px 18px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--noir); color: #fff; font: 700 .92rem var(--display, inherit); box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.installer-app .ic { width: 18px; height: 18px; color: var(--orange-2); }
+.installer-app .fermer { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--noir-3); font-size: 1rem; line-height: 1; }
+.exposant .installer-app { bottom: calc(84px + env(safe-area-inset-bottom)); }

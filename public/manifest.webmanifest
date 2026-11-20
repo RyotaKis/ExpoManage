@@ -1,0 +1,25 @@
+{
+  "name": "Fenou Expo Manage",
+  "short_name": "Fenou Expo",
+  "description": "Inscription des exposants, demandes de stand et suivi des paiements du marché Fènou HIGBÉ.",
+  "lang": "fr",
+  "dir": "ltr",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f0f11",
+  "theme_color": "#0f0f11",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Mon espace exposant", "short_name": "Mon espace", "url": "/espace/", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Nouvelle demande de stand", "short_name": "Demande", "url": "/espace/demande-nouvelle.html", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Administration", "short_name": "Admin", "url": "/admin/", "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
