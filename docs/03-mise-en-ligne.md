@@ -45,20 +45,22 @@ Les autres administrateurs se créent ensuite depuis l'application (**Paramètre
 3. Rédiger puis **publier** le contrat d'exploitation.
 4. Passer l'édition au statut **Ouverte** : les inscriptions démarrent.
 
-## 5. Hébergement (Cloudflare Pages, gratuit)
+## 5. Hébergement (Cloudflare, gratuit)
 
-1. https://dash.cloudflare.com › créer un compte gratuit.
-2. **Workers & Pages › Create › Pages › Connect to Git** › autoriser GitHub › dépôt `RyotaKis/ExpoManage`.
-3. Réglages du build :
-   - *Production branch* : `main`
-   - *Framework preset* : **None**
-   - *Build command* : **(vide)**
-   - *Build output directory* : **`public`**
-4. **Save and Deploy**. Le site est servi en HTTPS sur `https://<nom>.pages.dev`.
+Le fichier `wrangler.jsonc` à la racine indique à Cloudflare de publier le dossier `public/` tel quel.
+
+1. https://dash.cloudflare.com › **Workers & Pages › Créer › Importer un dépôt** › `RyotaKis/ExpoManage`.
+2. Réglages :
+   - *Nom du projet* : `expomanage`
+   - *Commande de build* : **(vide)**
+   - *Commande de déploiement* : `npx wrangler deploy`
+   - *Commande de version (aperçu)* : `npx wrangler versions upload` (proposée par défaut)
+   - Jeton d’API : laisser Cloudflare le créer
+3. **Déployer**. Le site est servi en HTTPS sur `https://expomanage.<votre-compte>.workers.dev`.
    Chaque `git push` sur `main` le met à jour automatiquement.
-5. Reporter cette adresse dans Supabase (étape 2, *Site URL*).
+4. Reporter cette adresse dans Supabase (étape 2, *Site URL*).
 
-Nom de domaine personnalisé (plus tard) : Pages › projet › **Custom domains**.
+Nom de domaine personnalisé (plus tard) : projet › **Paramètres › Domaines et routes**.
 
 ## 6. À chaque mise à jour importante
 

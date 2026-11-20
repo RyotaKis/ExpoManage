@@ -1,0 +1,12 @@
+// Déploiement Cloudflare (Workers, fichiers statiques uniquement).
+// Le site est le contenu de public/ ; aucune étape de build.
+{
+  "name": "expomanage",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./public",
+    // /admin/ sert admin/index.html ; /connexion.html redirige vers /connexion
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  }
+}

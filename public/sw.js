@@ -2,11 +2,12 @@
 // - Pages : réseau d'abord, puis cache, puis page hors ligne.
 // - Fichiers statiques (CSS, JS, images, polices) : cache immédiat + mise à jour en arrière-plan.
 // - Les appels à l'API (Supabase) ne sont jamais mis en cache.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `fenou-expo-${VERSION}`;
+// Les pages .html ne sont pas pré-chargées : l'hébergeur les redirige vers leur adresse sans .html,
+// et une réponse redirigée ne peut pas servir de page. Elles sont mises en cache à la première visite.
 const SOCLE = [
-  '/', '/index.html', '/connexion.html', '/inscription.html', '/hors-ligne.html',
-  '/espace/', '/espace/demande-nouvelle.html', '/espace/demande.html', '/espace/profil.html',
+  '/', '/hors-ligne.html', '/espace/',
   '/assets/css/app.css',
   '/assets/js/api.js', '/assets/js/api-local.js', '/assets/js/api-supabase.js', '/assets/js/config.js', '/assets/js/donnees-demo.js',
   '/assets/js/ui.js', '/assets/js/layout.js', '/assets/js/icones.js', '/assets/js/auth-visuel.js', '/assets/js/pwa.js',
@@ -17,7 +18,16 @@ const SOCLE = [
 const POLICES = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SOCLE)).then(() => self.skipWaiting()));
+  e.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await Promise.all(SOCLE.map(async (url) => {
+      const rep = await fetch(url, { cache: 'reload' });
+      if (!rep.ok) throw new Error(`Pré-chargement impossible : ${url}`);
+      // Copie « propre » (sans trace de redirection) pour pouvoir servir de page hors ligne
+      await cache.put(url, new Response(await rep.blob(), { status: 200, headers: rep.headers }));
+    }));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (e) => {
