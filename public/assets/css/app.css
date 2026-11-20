@@ -406,3 +406,28 @@ a.alert .ic { color: var(--orange); }
 /* Ajustements accueil */
 .vitrine .dates { border-radius: 14px; }
 @media (max-width: 760px) { .vitrine .logo-hero { display: none; } .vitrine .container { padding-top: 28px; } }
+
+/* --------------------------------------------------------------- Photos du marché */
+.vitrine { background: linear-gradient(95deg, rgba(15,15,17,.96) 0%, rgba(15,15,17,.86) 42%, rgba(15,15,17,.45) 100%),
+  url(/assets/img/site/marche-aerien.jpg) center 40% / cover no-repeat, var(--noir); }
+@media (max-width: 760px) { .vitrine { background: linear-gradient(180deg, rgba(15,15,17,.80), rgba(15,15,17,.94)),
+  url(/assets/img/site/marche-aerien.jpg) center / cover no-repeat, var(--noir); } }
+.vitrine::before { opacity: .55; }
+.auth-visuel { background: linear-gradient(160deg, rgba(15,15,17,.93) 10%, rgba(15,15,17,.72) 100%),
+  url(/assets/img/site/marche-nuit.jpg) center / cover no-repeat, var(--noir); }
+.accueil-exposant { background: linear-gradient(100deg, rgba(15,15,17,.95) 30%, rgba(15,15,17,.78)),
+  url(/assets/img/site/allees.jpg) center 35% / cover no-repeat, var(--noir); }
+
+.galerie { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); }
+.galerie figure { position: relative; margin: 0; border-radius: var(--radius); overflow: hidden; aspect-ratio: 4 / 3; background: var(--noir-2, #1b1b1f); box-shadow: var(--shadow); }
+.galerie img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s ease; }
+.galerie figure:hover img { transform: scale(1.05); }
+.galerie figcaption { position: absolute; inset: auto 0 0 0; padding: 28px 14px 12px; color: #fff; font-family: var(--display); font-weight: 800; font-style: italic;
+  font-size: .95rem; background: linear-gradient(transparent, rgba(0,0,0,.78)); }
+.galerie figcaption::before { content: ""; display: block; width: 28px; height: 4px; border-radius: 2px; background: var(--grad); margin-bottom: 6px; }
+@media (min-width: 860px) {
+  .galerie { grid-template-columns: 1.4fr 1fr 1fr; grid-template-rows: repeat(2, 200px); }
+  .galerie figure { aspect-ratio: auto; }
+  .galerie figure:first-child { grid-row: span 2; }
+}
+@media (max-width: 859px) { .galerie figure:first-child { grid-column: span 2; aspect-ratio: 16 / 9; } }

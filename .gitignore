@@ -3,3 +3,7 @@ node_modules/
 .env
 .env.*
 *.local
+
+# Photothèque brute (très lourde) : seules les images optimisées de site/ sont versionnées
+public/assets/img/*
+!public/assets/img/site/
