@@ -3,26 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mon espace · Fènou HIGBÉ</title>
+  <title>Mon espace · Fenou Expo Manage</title>
+  <meta name="theme-color" content="#0f0f11">
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-  <main class="container stack">
-    <div class="row between">
+  <section class="accueil-exposant">
+    <div class="container stack">
       <div class="row">
         <img id="logo" class="logo-apercu" alt="" hidden>
         <div>
-          <h1 id="bonjour" style="margin:0">Mon espace</h1>
+          <h1 id="bonjour">Bonjour !</h1>
           <p class="muted" id="entreprise" style="margin:0"></p>
         </div>
       </div>
-      <a class="btn" href="/espace/demande-nouvelle.html">+ Nouvelle demande</a>
+      <a class="carte-orange" href="/espace/demande-nouvelle.html" id="carte"></a>
     </div>
+  </section>
 
+  <main class="container stack">
     <div id="bienvenue" class="alert ok" hidden>Votre compte est créé. Vous pouvez maintenant faire votre demande de stand.</div>
-
+    <div class="tuiles" id="tuiles"></div>
     <section class="solde" id="solde"></section>
-
     <section class="stack">
       <h2>Mes demandes</h2>
       <div id="liste" class="liste-demandes"><p class="muted">Chargement…</p></div>
@@ -33,11 +35,12 @@
     import * as api from '/assets/js/api.js';
     import { monterEntete, exigerExposant } from '/assets/js/layout.js';
     import { $, esc, fcfa, date, badge, param } from '/assets/js/ui.js';
+    import { ic } from '/assets/js/icones.js';
 
     const profil = await exigerExposant();
     monterEntete('exposant');
 
-    $('#bonjour').textContent = `Bonjour ${profil.prenoms}`;
+    $('#bonjour').textContent = `Bonjour ${profil.prenoms} !`;
     $('#entreprise').textContent = profil.entreprise;
     if (profil.logo_path) { const u = await api.urlFichier(profil.logo_path); if (u) { $('#logo').src = u; $('#logo').hidden = false; } }
     if (param('bienvenue')) $('#bienvenue').hidden = false;
@@ -46,30 +49,49 @@
     const actives = demandes.filter((d) => d.statut !== 'annulee');
     const somme = (k) => actives.reduce((t, d) => t + d[k], 0);
     const enAttente = somme('montant_en_attente');
+    const reste = actives.reduce((t, d) => t + Math.max(0, d.reste_a_payer), 0);
+    const aPayer = actives.find((d) => d.reste_a_payer - d.montant_en_attente > 0);
+
+    $('#carte').innerHTML = aPayer
+      ? `<div><strong>Reste à payer : ${fcfa(reste)}</strong><span>Déclarez votre prochain versement pour la demande ${esc(aPayer.numero)}.</span></div><span class="rond">${ic('fleche')}</span>`
+      : `<div><strong>Votre espace exposant</strong><span>Réservez vos stands et suivez votre dossier.</span></div><span class="rond">${ic('fleche')}</span>`;
+    if (aPayer) $('#carte').href = `/espace/demande.html?id=${aPayer.id}#payer`;
+
+    $('#tuiles').innerHTML = [
+      ['/espace/demande-nouvelle.html', 'plus', 'Nouvelle demande'],
+      [aPayer ? `/espace/demande.html?id=${aPayer.id}#payer` : '#liste', 'paiement', 'Déclarer un paiement'],
+      ['#liste', 'demande', 'Mes demandes'],
+      ['/espace/profil.html', 'profil', 'Mon profil'],
+    ].map(([h, i, t]) => `<a class="tuile" href="${h}">${ic(i)}${t}</a>`).join('');
 
     $('#solde').innerHTML = actives.length ? `
       <div class="kpi"><div class="label">Total de ma participation</div><div class="value">${fcfa(somme('montant_du'))}</div></div>
       <div class="kpi"><div class="label">Déjà payé (validé)</div><div class="value">${fcfa(somme('total_paye'))}</div></div>
-      <div class="kpi reste"><div class="label">Reste à payer</div><div class="value">${fcfa(Math.max(0, somme('reste_a_payer')))}</div></div>
+      <div class="kpi reste"><div class="label">Reste à payer</div><div class="value">${fcfa(reste)}</div></div>
       ${enAttente ? `<div class="kpi"><div class="label">En cours de vérification</div><div class="value">${fcfa(enAttente)}</div></div>` : ''}` : '';
 
-    $('#liste').innerHTML = demandes.length ? demandes.map((d) => `
+    $('#liste').innerHTML = demandes.length ? demandes.map((d) => {
+      const pct = d.montant_du ? Math.min(100, Math.round((d.total_paye / d.montant_du) * 100)) : 100;
+      return `
       <a class="card demande-carte" href="/espace/demande.html?id=${d.id}">
         <div class="row between">
-          <strong>${esc(d.numero)} · ${esc(d.categorie_nom)} × ${d.quantite}</strong>
+          <span class="numero">${esc(d.numero)} · ${esc(d.categorie_nom)} × ${d.quantite}</span>
           ${badge('demande', d.statut)}
         </div>
-        <p class="muted small" style="margin:4px 0 10px">${esc(d.edition_nom)}${d.site_nom !== 'Site principal' ? ' · ' + esc(d.site_nom) : ''} · demandée le ${date(d.created_at)}</p>
+        <p class="muted small" style="margin:4px 0 12px">${esc(d.edition_nom)}${d.site_nom !== 'Site principal' ? ' · ' + esc(d.site_nom) : ''} · demandée le ${date(d.created_at)}</p>
         <div class="row between small">
-          <span>Montant : <strong>${fcfa(d.montant_du)}</strong></span>
-          <span>Reste : <strong>${fcfa(Math.max(0, d.reste_a_payer))}</strong> ${badge('financier', d.statut_financier)}</span>
+          <span>Payé <strong>${fcfa(d.total_paye)}</strong> sur ${fcfa(d.montant_du)}</span>
+          ${badge('financier', d.statut_financier)}
         </div>
-        ${d.stands_attribues ? `<p class="small" style="margin:8px 0 0">Stand(s) : <strong>${esc(d.stands_attribues)}</strong></p>` : ''}
-        ${d.nb_paiements_en_attente ? `<p class="small muted" style="margin:8px 0 0">${d.nb_paiements_en_attente} paiement(s) en attente de validation</p>` : ''}
-      </a>`).join('') : `
+        ${d.statut !== 'annulee' ? `<div class="progression"><span style="width:${pct}%"></span></div>` : ''}
+        ${d.stands_attribues ? `<p class="small" style="margin:12px 0 0">${ic('lieu', 'ic')} Stand(s) : <strong>${esc(d.stands_attribues)}</strong></p>` : ''}
+        ${d.nb_paiements_en_attente ? `<p class="small muted" style="margin:8px 0 0">${d.nb_paiements_en_attente} paiement(s) en cours de vérification</p>` : ''}
+      </a>`;
+    }).join('') : `
       <div class="card vide">
+        ${ic('stand')}
         <p>Vous n'avez pas encore de demande de stand.</p>
-        <a class="btn" href="/espace/demande-nouvelle.html">Faire une demande</a>
+        <a class="btn" href="/espace/demande-nouvelle.html">${ic('plus')} Faire une demande</a>
       </div>`;
   </script>
 </body>

@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tableau de bord · Administration</title>
+  <title>Tableau de bord · Fenou Expo Manage</title>
+  <meta name="theme-color" content="#0f0f11">
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
   <main class="container wide stack">
-    <div class="row between">
-      <h1 style="margin:0">Tableau de bord</h1>
+    <div class="entete-page">
+      <div><h1>Tableau de bord</h1><p>Vue d'ensemble de votre événement</p></div>
       <label style="min-width:240px">Édition <select id="edition"></select></label>
     </div>
     <div id="zone"><p class="muted">Chargement…</p></div>
@@ -19,42 +20,106 @@
     import * as api from '/assets/js/api.js';
     import { exigerAdmin } from '/assets/js/layout.js';
     import { selecteurEdition } from '/assets/js/admin-commun.js';
-    import { $, esc, fcfa, nombre, LIBELLES } from '/assets/js/ui.js';
+    import { $, esc, fcfa, nombre, dateHeure, aujourdhui } from '/assets/js/ui.js';
+    import { ic } from '/assets/js/icones.js';
 
     await exigerAdmin();
     const sel = await selecteurEdition($('#edition'), { onChange: afficher });
 
+    const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+    const kpi = ({ label, valeur, sous = '', lien = '', icone = '', style = '' }) =>
+      `<${lien ? `a href="${lien}"` : 'div'} class="kpi ${style}">
+        ${icone ? `<span class="ic-kpi">${ic(icone)}</span>` : ''}
+        <div class="value">${valeur}</div><div class="label">${label}</div>${sous ? `<div class="small muted">${sous}</div>` : ''}
+      </${lien ? 'a' : 'div'}>`;
+
+    // Petite courbe SVG : demandes cumulées sur les 14 derniers jours
+    function courbe(demandes) {
+      const jours = [...Array(14)].map((_, i) => new Date(Date.now() - (13 - i) * 864e5).toISOString().slice(0, 10));
+      const avant = demandes.filter((d) => d.created_at.slice(0, 10) < jours[0]).length;
+      let cumul = avant;
+      const pts = jours.map((j) => (cumul += demandes.filter((d) => d.created_at.slice(0, 10) === j).length));
+      const max = Math.max(1, ...pts), L = 560, H = 170, P = 8;
+      const xy = pts.map((v, i) => [P + (i * (L - 2 * P)) / 13, H - P - ((v / max) * (H - 2 * P))]);
+      const ligne = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+      return `<svg viewBox="0 0 ${L} ${H + 22}" style="width:100%;height:auto" role="img" aria-label="Demandes cumulées sur 14 jours">
+        <defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f47a1f" stop-opacity=".28"/><stop offset="1" stop-color="#f47a1f" stop-opacity="0"/></linearGradient>
+          <linearGradient id="gl" x1="0" x2="1"><stop offset="0" stop-color="#ea3e14"/><stop offset="1" stop-color="#f9b218"/></linearGradient></defs>
+        ${[0, .5, 1].map((f) => `<line x1="${P}" x2="${L - P}" y1="${P + f * (H - 2 * P)}" y2="${P + f * (H - 2 * P)}" stroke="#ececf1"/>`).join('')}
+        <path d="${ligne} L${xy[13][0]},${H - P} L${P},${H - P} Z" fill="url(#g)"/>
+        <path d="${ligne}" fill="none" stroke="url(#gl)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        ${xy.map(([x, y], i) => (i % 2 === 1 || i === 13 ? `<circle cx="${x}" cy="${y}" r="4" fill="#fff" stroke="#f47a1f" stroke-width="2.5"><title>${pts[i]} demande(s) au ${jours[i]}</title></circle>` : '')).join('')}
+        ${xy.map(([x], i) => (i % 3 === 1 ? `<text x="${x}" y="${H + 16}" font-size="11" fill="#8d8d97" text-anchor="middle">${jours[i].slice(8)}/${jours[i].slice(5, 7)}</text>` : '')).join('')}
+        <text x="${L - P}" y="${P + 12}" font-size="12" fill="#5d5d66" text-anchor="end" font-weight="700">${pts[13]} au total</text>
+      </svg>`;
+    }
+
     async function afficher() {
-      const t = await api.tableauDeBord(sel.valeur());
-      const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
-      const kpi = (label, valeur, sous = '', lien = '') =>
-        `<${lien ? `a href="${lien}"` : 'div'} class="kpi"${lien ? ' style="text-decoration:none;color:inherit"' : ''}>
-          <div class="label">${label}</div><div class="value">${valeur}</div>${sous ? `<div class="small muted">${sous}</div>` : ''}
-        </${lien ? 'a' : 'div'}>`;
+      const editionId = sel.valeur();
+      const ed = sel.editions.find((e) => e.id === editionId);
+      const [t, demandes, paiements] = await Promise.all([
+        api.tableauDeBord(editionId), api.listeDemandes({ edition_id: editionId }), api.listePaiements({ edition_id: editionId }),
+      ]);
+      const joursRestants = ed ? Math.max(0, Math.ceil((new Date(ed.date_debut + 'T00:00:00') - new Date(aujourdhui() + 'T00:00:00')) / 864e5)) : 0;
+
+      const activite = [
+        ...demandes.map((d) => ({ quand: d.created_at, icone: 'demande', titre: 'Nouvelle demande de stand', detail: `${d.entreprise} · ${d.categorie_nom} × ${d.quantite}`, lien: `/admin/demande.html?id=${d.id}` })),
+        ...paiements.map((p) => ({ quand: p.valide_le || p.created_at, icone: p.statut === 'valide' ? 'valide' : 'paiement',
+          titre: p.statut === 'valide' ? 'Paiement validé' : p.statut === 'rejete' ? 'Paiement rejeté' : 'Paiement déclaré',
+          detail: `${p.demande.entreprise} · ${fcfa(p.montant)}`, lien: `/admin/demande.html?id=${p.demande_id}` })),
+      ].sort((a, b) => b.quand.localeCompare(a.quand)).slice(0, 6);
 
       $('#zone').innerHTML = `
         <div class="stack">
-          ${t.paiements_en_attente ? `<a class="alert" href="/admin/paiements.html" style="display:block;text-decoration:none">
-            <strong>${t.paiements_en_attente} paiement(s) en attente de validation</strong> (${fcfa(t.montant_en_attente)}) → les traiter</a>` : ''}
+          ${t.paiements_en_attente ? `<a class="alert" href="/admin/paiements.html">${ic('cloche')}
+            <span><strong>${t.paiements_en_attente} paiement(s) en attente de validation</strong> · ${fcfa(t.montant_en_attente)}</span>
+            <span style="margin-left:auto" class="lien-fort">Traiter →</span></a>` : ''}
 
-          <h2>Finances</h2>
           <div class="solde">
-            ${kpi('Montant total attendu', fcfa(t.montant_attendu))}
-            ${kpi('Encaissé (validé)', fcfa(t.montant_encaisse), `${pct(t.montant_encaisse, t.montant_attendu)} % de l'attendu`)}
-            ${kpi('Reste à recouvrer', fcfa(t.montant_restant), '', '/admin/demandes.html?financier=impaye')}
-            ${kpi('Paiements à valider', nombre(t.paiements_en_attente), fcfa(t.montant_en_attente), '/admin/paiements.html')}
+            ${kpi({ label: 'Exposants enregistrés', valeur: nombre(t.exposants_total), sous: `+${t.nouveaux_7j} sur 7 jours`, lien: '/admin/exposants.html', icone: 'exposants', style: 'orange' })}
+            ${kpi({ label: 'Demandes de stand', valeur: nombre(t.demandes), sous: `${t.stands_demandes} stand(s) demandé(s)`, lien: '/admin/demandes.html', icone: 'stand', style: 'noir' })}
+            ${kpi({ label: 'Jours avant le marché', valeur: nombre(joursRestants), sous: ed ? esc(ed.nom) : '', icone: 'calendrier', style: 'jaune' })}
+            ${kpi({ label: 'Paiements à valider', valeur: nombre(t.paiements_en_attente), sous: fcfa(t.montant_en_attente), lien: '/admin/paiements.html', icone: 'sablier' })}
           </div>
-          <div class="barre" title="Taux d'encaissement"><span style="width:${pct(t.montant_encaisse, t.montant_attendu)}%"></span></div>
 
-          <h2>Exposants et demandes</h2>
-          <div class="solde">
-            ${kpi('Exposants enregistrés', nombre(t.exposants_total), `${t.nouveaux_7j} nouveau(x) sur 7 jours`, '/admin/exposants.html')}
-            ${kpi('Exposants de l\'édition', nombre(t.exposants_edition))}
-            ${kpi('Demandes reçues', nombre(t.demandes), '', '/admin/demandes.html')}
-            ${kpi('En attente de paiement', nombre(t.demandes_par_statut.en_attente_paiement), '', '/admin/demandes.html?statut=en_attente_paiement')}
-            ${kpi('Validées', nombre(t.demandes_par_statut.validee + t.demandes_par_statut.attribuee),
-              `dont ${t.demandes_par_statut.attribuee} avec stand attribué`, '/admin/demandes.html?statut=validee')}
-            ${kpi('Stands demandés / attribués', `${nombre(t.stands_demandes)} / ${nombre(t.stands_attribues)}`)}
+          <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))">
+            <section class="card stack">
+              <div class="row between"><h2 style="margin:0">Finances</h2><span class="small muted">${pct(t.montant_encaisse, t.montant_attendu)} % encaissé</span></div>
+              <div class="barre"><span style="width:${pct(t.montant_encaisse, t.montant_attendu)}%"></span></div>
+              <dl class="dl">
+                <dt>Montant total attendu</dt><dd>${fcfa(t.montant_attendu)}</dd>
+                <dt>Encaissé (validé)</dt><dd style="color:var(--ok)">${fcfa(t.montant_encaisse)}</dd>
+                <dt>Reste à recouvrer</dt><dd style="color:var(--orange)"><a href="/admin/demandes.html?financier=impaye" style="color:inherit">${fcfa(t.montant_restant)}</a></dd>
+                <dt>En attente de validation</dt><dd>${fcfa(t.montant_en_attente)}</dd>
+              </dl>
+            </section>
+            <section class="card stack">
+              <div class="row between"><h2 style="margin:0">Évolution des demandes</h2><span class="small muted">14 derniers jours</span></div>
+              ${courbe(demandes)}
+            </section>
+          </div>
+
+          <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))">
+            <section class="card stack">
+              <h2 style="margin:0">Activité récente</h2>
+              ${activite.length ? `<ul style="list-style:none;padding:0;margin:0;display:grid;gap:14px">${activite.map((a) => `
+                <li><a href="${a.lien}" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit">
+                  <span class="ic-kpi" style="position:static;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--orange);flex:none">${ic(a.icone)}</span>
+                  <span style="min-width:0"><strong style="display:block;font-size:.92rem">${a.titre}</strong>
+                    <span class="small muted">${esc(a.detail)} · ${dateHeure(a.quand)}</span></span></a></li>`).join('')}</ul>`
+                : '<p class="muted">Aucune activité pour l\'instant.</p>'}
+            </section>
+            <section class="card stack">
+              <div class="row between"><h2 style="margin:0">Statut des demandes</h2></div>
+              <dl class="dl">
+                <dt>En attente de paiement</dt><dd><a href="/admin/demandes.html?statut=en_attente_paiement">${t.demandes_par_statut.en_attente_paiement}</a></dd>
+                <dt>Validées</dt><dd><a href="/admin/demandes.html?statut=validee">${t.demandes_par_statut.validee}</a></dd>
+                <dt>Stand attribué</dt><dd><a href="/admin/demandes.html?statut=attribuee">${t.demandes_par_statut.attribuee}</a></dd>
+                <dt>Annulées</dt><dd>${t.demandes_par_statut.annulee}</dd>
+                <dt>Stands demandés / attribués</dt><dd>${t.stands_demandes} / ${t.stands_attribues}</dd>
+                <dt>Exposants de l'édition</dt><dd>${t.exposants_edition}</dd>
+              </dl>
+            </section>
           </div>
 
           <h2>Répartition par catégorie</h2>
@@ -62,7 +127,7 @@
             <thead><tr><th>Famille</th><th>Catégorie</th><th class="num">Exposants</th><th class="num">Demandes</th>
               <th class="num">Stands demandés</th><th class="num">Stands attribués</th><th class="num">Attendu</th><th class="num">Encaissé</th></tr></thead>
             <tbody>${t.par_categorie.map((c) => `<tr>
-              <td>${esc(c.famille)}</td><td>${esc(c.categorie)}</td><td class="num">${c.exposants}</td><td class="num">${c.demandes}</td>
+              <td class="muted">${esc(c.famille)}</td><td><strong>${esc(c.categorie)}</strong></td><td class="num">${c.exposants}</td><td class="num">${c.demandes}</td>
               <td class="num">${c.stands_demandes}</td><td class="num">${c.stands_attribues}</td>
               <td class="num">${fcfa(c.attendu)}</td><td class="num">${fcfa(c.encaisse)}</td></tr>`).join('')}
             </tbody>
@@ -70,7 +135,7 @@
               <th class="num">${t.stands_demandes}</th><th class="num">${t.stands_attribues}</th>
               <th class="num">${fcfa(t.montant_attendu)}</th><th class="num">${fcfa(t.montant_encaisse)}</th></tr></tfoot>
           </table></div>
-          <p class="small muted">Les demandes annulées (${t.demandes_par_statut.annulee}) ne sont pas comptées dans les montants.</p>
+          <p class="small muted">Les demandes annulées ne sont pas comptées dans les montants.</p>
         </div>`;
     }
     await afficher();

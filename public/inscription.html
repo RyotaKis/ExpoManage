@@ -3,64 +3,65 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Inscription · Fènou HIGBÉ</title>
+  <title>Inscription · Fenou Expo Manage</title>
+  <meta name="theme-color" content="#0f0f11">
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-  <main class="container narrow stack">
-    <h1>Inscription exposant</h1>
-    <p class="muted">Déjà exposant lors d'une édition précédente ? <a href="/connexion.html">Connectez-vous</a> : vos informations sont conservées.</p>
+  <div class="auth">
+    <section class="auth-visuel" id="visuel"></section>
+    <section class="auth-form"><div>
+      <h1>Créer mon compte</h1>
+      <p class="sous-titre">Déjà exposant lors d'une édition précédente ? <a class="lien-fort" href="/connexion.html">Connectez-vous</a> : vos informations sont conservées.</p>
 
-    <form id="form" class="stack" novalidate>
-      <fieldset class="form-grid">
-        <legend>Vous</legend>
+      <form id="form" class="form-grid" novalidate>
         <div class="form-grid two">
           <label>Nom <input name="nom" required autocomplete="family-name"></label>
           <label>Prénoms <input name="prenoms" required autocomplete="given-name"></label>
         </div>
-        <label>Numéro de téléphone
-          <span class="hint">Il vous servira à vous connecter. Exemple : 01 97 00 00 00</span>
-          <input name="telephone" type="tel" inputmode="tel" required autocomplete="tel">
+        <label>Numéro de téléphone <span class="hint">Il vous servira à vous connecter.</span>
+          <span class="champ"><span data-ic="telephone"></span><input name="telephone" type="tel" inputmode="tel" required autocomplete="tel" placeholder="01 97 00 00 00"></span>
         </label>
         <label>Mot de passe <span class="hint">6 caractères minimum</span>
-          <input name="mdp" type="password" required minlength="6" autocomplete="new-password">
+          <span class="champ"><span data-ic="cadenas"></span><input name="mdp" type="password" required minlength="6" autocomplete="new-password"></span>
         </label>
-      </fieldset>
-
-      <fieldset class="form-grid">
-        <legend>Votre activité</legend>
-        <label>Nom de l'entreprise ou de l'activité <input name="entreprise" required autocomplete="organization"></label>
+        <label>Nom de l'entreprise ou de l'activité
+          <span class="champ"><span data-ic="stand"></span><input name="entreprise" required autocomplete="organization"></span>
+        </label>
         <label>Logo <span class="hint">Facultatif · PNG, JPG ou WebP, 2 Mo maximum</span>
           <input name="logo" type="file" accept="image/png,image/jpeg,image/webp">
         </label>
-      </fieldset>
 
-      <details class="card">
-        <summary><strong>Informations complémentaires</strong> <span class="muted">(facultatif)</span></summary>
-        <div class="form-grid two" style="margin-top:16px">
-          <label>WhatsApp <input name="whatsapp" type="tel" inputmode="tel"></label>
-          <label>Autre téléphone <input name="telephone_secondaire" type="tel" inputmode="tel"></label>
-          <label>E-mail <input name="email" type="email" autocomplete="email"></label>
-          <label>Ville <input name="ville" autocomplete="address-level2"></label>
-          <label>IFU <input name="ifu"></label>
-          <label>RCCM <input name="rccm"></label>
-          <label>Secteur d'activité <input name="secteur"></label>
-          <label>Adresse <input name="adresse" autocomplete="street-address"></label>
-        </div>
-        <label style="margin-top:16px">Présentation de votre activité <textarea name="description" rows="3"></textarea></label>
-      </details>
+        <details class="card" style="padding:16px 18px;box-shadow:none">
+          <summary><strong>Informations complémentaires</strong> <span class="muted small">(facultatif)</span></summary>
+          <div class="form-grid two" style="margin-top:16px">
+            <label>WhatsApp <input name="whatsapp" type="tel" inputmode="tel"></label>
+            <label>Autre téléphone <input name="telephone_secondaire" type="tel" inputmode="tel"></label>
+            <label>E-mail <input name="email" type="email" autocomplete="email"></label>
+            <label>Ville <input name="ville" autocomplete="address-level2"></label>
+            <label>IFU <input name="ifu"></label>
+            <label>RCCM <input name="rccm"></label>
+            <label>Secteur d'activité <input name="secteur"></label>
+            <label>Adresse <input name="adresse" autocomplete="street-address"></label>
+          </div>
+          <label style="margin-top:16px">Présentation de votre activité <textarea name="description" rows="3"></textarea></label>
+        </details>
 
-      <div id="erreur" class="alert erreur" hidden></div>
-      <button class="btn block" type="submit">Créer mon compte</button>
-    </form>
-  </main>
+        <div id="erreur" class="alert erreur" hidden></div>
+        <button class="btn block lg" type="submit">Créer mon compte <span data-ic="fleche"></span></button>
+      </form>
+      <p class="small muted" style="margin-top:24px;text-align:center"><a href="/" style="color:inherit">← Retour à l'accueil</a></p>
+    </div></section>
+  </div>
 
   <script type="module">
     import * as api from '/assets/js/api.js';
-    import { monterEntete } from '/assets/js/layout.js';
-    import { $, lireFormulaire, telephoneValide } from '/assets/js/ui.js';
+    import { monterVisuel } from '/assets/js/auth-visuel.js';
+    import { ic } from '/assets/js/icones.js';
+    import { $, $$, lireFormulaire, telephoneValide } from '/assets/js/ui.js';
 
-    monterEntete('public');
+    monterVisuel($('#visuel'));
+    $$('[data-ic]').forEach((s) => (s.outerHTML = ic(s.dataset.ic)));
     if (await api.monProfil()) location.replace('/espace/');
 
     const form = $('#form'), erreur = $('#erreur');

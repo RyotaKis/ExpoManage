@@ -3,32 +3,44 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Connexion · Fènou HIGBÉ</title>
+  <title>Connexion · Fenou Expo Manage</title>
+  <meta name="theme-color" content="#0f0f11">
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-  <main class="container narrow stack">
-    <h1>Connexion</h1>
-    <form id="form" class="card form-grid" novalidate>
-      <label>Numéro de téléphone
-        <input name="telephone" type="tel" inputmode="tel" required autocomplete="tel">
-      </label>
-      <label>Mot de passe
-        <input name="mdp" type="password" required autocomplete="current-password">
-      </label>
-      <div id="erreur" class="alert erreur" hidden></div>
-      <button class="btn block" type="submit">Se connecter</button>
-    </form>
-    <p class="muted small">Mot de passe oublié ? Contactez l'organisation : elle pourra le réinitialiser.</p>
-    <p>Pas encore de compte ? <a href="/inscription.html">Inscrivez-vous</a></p>
-  </main>
+  <div class="auth">
+    <section class="auth-visuel" id="visuel"></section>
+    <section class="auth-form"><div>
+      <h1>Se connecter</h1>
+      <p class="sous-titre">Accédez à votre espace exposant</p>
+      <form id="form" class="form-grid" novalidate>
+        <label>Numéro de téléphone
+          <span class="champ"><span data-ic="telephone"></span><input name="telephone" type="tel" inputmode="tel" required autocomplete="tel" placeholder="01 97 00 00 00"></span>
+        </label>
+        <label>Mot de passe
+          <span class="champ"><span data-ic="cadenas"></span><input name="mdp" type="password" required autocomplete="current-password" placeholder="Votre mot de passe"></span>
+        </label>
+        <div class="row between small">
+          <span></span>
+          <span class="muted">Mot de passe oublié ? Contactez l'organisation.</span>
+        </div>
+        <div id="erreur" class="alert erreur" hidden></div>
+        <button class="btn block lg" type="submit">Se connecter <span data-ic="fleche"></span></button>
+      </form>
+      <div class="separateur">ou</div>
+      <a class="btn secondary block" href="/inscription.html">Créer mon compte exposant</a>
+      <p class="small muted" style="margin-top:24px;text-align:center"><a href="/" style="color:inherit">← Retour à l'accueil</a></p>
+    </div></section>
+  </div>
 
   <script type="module">
     import * as api from '/assets/js/api.js';
-    import { monterEntete } from '/assets/js/layout.js';
-    import { $, param } from '/assets/js/ui.js';
+    import { monterVisuel } from '/assets/js/auth-visuel.js';
+    import { ic } from '/assets/js/icones.js';
+    import { $, $$, param } from '/assets/js/ui.js';
 
-    monterEntete('public');
+    monterVisuel($('#visuel'));
+    $$('[data-ic]').forEach((s) => (s.outerHTML = ic(s.dataset.ic)));
     const retour = param('retour');
     const cible = retour && retour.startsWith('/espace/') ? retour : '/espace/';
     if (await api.monProfil()) location.replace(cible);

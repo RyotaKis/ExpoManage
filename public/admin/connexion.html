@@ -3,25 +3,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Administration · Fènou HIGBÉ</title>
+  <title>Administration · Fenou Expo Manage</title>
+  <meta name="theme-color" content="#0f0f11">
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-  <main class="container narrow stack" style="padding-top:48px">
-    <h1>Administration</h1>
-    <form id="form" class="card form-grid" novalidate>
-      <label>E-mail <input name="email" type="email" required autocomplete="username"></label>
-      <label>Mot de passe <input name="mdp" type="password" required autocomplete="current-password"></label>
-      <div id="erreur" class="alert erreur" hidden></div>
-      <button class="btn block" type="submit">Se connecter</button>
-    </form>
-    <p class="small muted">Espace réservé à l'équipe organisatrice. Exposants : <a href="/connexion.html">connectez-vous ici</a>.</p>
-  </main>
+  <div class="auth">
+    <section class="auth-visuel" id="visuel"></section>
+    <section class="auth-form"><div>
+      <h1>Administration</h1>
+      <p class="sous-titre">Espace réservé à l'équipe organisatrice</p>
+      <form id="form" class="form-grid" novalidate>
+        <label>E-mail
+          <span class="champ"><span data-ic="profil"></span><input name="email" type="email" required autocomplete="username"></span></label>
+        <label>Mot de passe
+          <span class="champ"><span data-ic="cadenas"></span><input name="mdp" type="password" required autocomplete="current-password"></span></label>
+        <div id="erreur" class="alert erreur" hidden></div>
+        <button class="btn block lg" type="submit">Se connecter <span data-ic="fleche"></span></button>
+      </form>
+      <p class="small muted" style="margin-top:24px">Vous êtes exposant ? <a class="lien-fort" href="/connexion.html">Connectez-vous ici</a>.</p>
+    </div></section>
+  </div>
 
   <script type="module">
     import * as api from '/assets/js/api.js';
-    import { $, param } from '/assets/js/ui.js';
+    import { monterVisuel } from '/assets/js/auth-visuel.js';
+    import { ic } from '/assets/js/icones.js';
+    import { $, $$, param } from '/assets/js/ui.js';
 
+    monterVisuel($('#visuel'), { admin: true });
+    $$('[data-ic]').forEach((s) => (s.outerHTML = ic(s.dataset.ic)));
     const retour = param('retour');
     const cible = retour && retour.startsWith('/admin/') ? retour : '/admin/';
     if (await api.monAdmin()) location.replace(cible);
