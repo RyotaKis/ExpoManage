@@ -29,9 +29,9 @@ docs/                        spécification et planning
 
 ## Mode local (développement)
 
-Par défaut (`MODE = 'local'` dans `public/assets/js/config.js`), l'application fonctionne **entièrement dans le navigateur**, sans Supabase. Les données sont dans `localStorage` et les fichiers dans IndexedDB, et la couche `api-local.js` applique les mêmes règles que la base. Les comptes de test et les données de démonstration (tarifs et contrat **fictifs**) sont décrits en tête de `public/assets/js/donnees-demo.js`. Le bandeau jaune permet de tout réinitialiser.
+Avec `MODE = 'local'` dans `public/assets/js/config.js`, l'application fonctionne **entièrement dans le navigateur**, sans Supabase. Les données sont dans `localStorage` et les fichiers dans IndexedDB, et la couche `api-local.js` applique les mêmes règles que la base. Les comptes de test et les données de démonstration (tarifs et contrat **fictifs**) sont décrits en tête de `public/assets/js/donnees-demo.js`. Le bandeau jaune permet de tout réinitialiser.
 
-Les pages n'appellent que `assets/js/api.js`. Le branchement Supabase consistera à écrire `api-supabase.js` avec les mêmes fonctions, puis à passer `MODE` à `'supabase'`.
+Les pages n'appellent que `assets/js/api.js`. En production, `MODE = 'supabase'` : `api-supabase.js` expose les mêmes fonctions. Procédure de mise en ligne complète : [docs/03-mise-en-ligne.md](docs/03-mise-en-ligne.md).
 
 ## Installation de Supabase (une seule fois, environ 15 min, au moment du branchement)
 
