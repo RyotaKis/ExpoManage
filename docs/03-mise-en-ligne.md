@@ -2,6 +2,7 @@
 
 Projet Supabase : `https://oxgyxlvvctnwfmywciua.supabase.co`
 Code : https://github.com/RyotaKis/ExpoManage (branche `main`)
+Site en ligne : https://expomanage.pdreck06.workers.dev (Cloudflare Workers, déployé à chaque push)
 
 ## 1. Base de données (Supabase › SQL Editor)
 
