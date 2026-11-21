@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /espace/
+Sitemap: https://fenouexpo.pages.dev/sitemap.xml

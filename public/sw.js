@@ -2,7 +2,7 @@
 // - Pages : réseau d'abord, puis cache, puis page hors ligne.
 // - Fichiers statiques (CSS, JS, images, polices) : cache immédiat + mise à jour en arrière-plan.
 // - Les appels à l'API (Supabase) ne sont jamais mis en cache.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `fenou-expo-${VERSION}`;
 // Les pages .html ne sont pas pré-chargées : l'hébergeur les redirige vers leur adresse sans .html,
 // et une réponse redirigée ne peut pas servir de page. Elles sont mises en cache à la première visite.

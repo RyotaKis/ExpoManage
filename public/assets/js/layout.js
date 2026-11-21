@@ -71,6 +71,7 @@ const LIENS_ADMIN = [
   ['/admin/paiements.html', 'Paiements', 'paiement'],
   ['/admin/demandes.html', 'Demandes de stand', 'demande'],
   ['/admin/exposants.html', 'Exposants', 'exposants'],
+  ['/admin/partage.html', 'Partager le site', 'qr'],
 ];
 const LIENS_SUPER = [
   ['/admin/configuration.html', 'Configuration', 'reglages'],

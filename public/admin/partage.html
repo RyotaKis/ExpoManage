@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Partager le site · Administration</title>
+  <link rel="stylesheet" href="/assets/css/app.css">
+  <meta name="robots" content="noindex">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/icons/favicon-48.png">
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Fenou Expo">
+  <script type="module" src="/assets/js/pwa.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+</head>
+<body>
+  <main class="container wide stack">
+    <div class="entete-page"><div><h1>Partager le site</h1><p>QR code et lien à diffuser sur les affiches, flyers et réseaux sociaux</p></div></div>
+
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));align-items:start">
+      <section class="card stack" style="align-items:center;text-align:center">
+        <div id="qr" style="width:min(100%,320px);aspect-ratio:1"></div>
+        <p class="small muted" style="margin:0">Scanné avec l'appareil photo d'un téléphone, il ouvre <strong id="lien-affiche"></strong></p>
+        <div class="actions" style="justify-content:center">
+          <button class="btn" id="png">Télécharger en PNG</button>
+          <button class="btn secondary" id="svg">Télécharger en SVG (impression)</button>
+        </div>
+      </section>
+
+      <section class="card stack">
+        <label>Adresse encodée dans le QR code
+          <input id="url" type="url"></label>
+        <p class="small muted" style="margin:0">Par défaut : la page d'accueil du site. Vous pouvez viser directement l'inscription
+          (<code>/inscription</code>).</p>
+        <div class="actions">
+          <button class="btn secondary sm" id="copier">Copier le lien</button>
+          <a class="btn secondary sm" id="whatsapp" target="_blank" rel="noopener">Partager sur WhatsApp</a>
+        </div>
+        <h2 style="margin:12px 0 0">Aperçu dans WhatsApp et Facebook</h2>
+        <img src="/assets/img/site/partage.jpg" alt="Image affichée quand le lien est partagé" style="width:100%;border-radius:12px">
+        <p class="small muted" style="margin:0">Cette image et le titre « Fènou HIGBÉ · Réservez votre stand » s'affichent quand le lien
+          de la page d'accueil est collé dans une conversation.</p>
+        <p class="small muted" style="margin:0">Conseil : imprimez le QR code en au moins 3 × 3 cm, en noir sur fond blanc.</p>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { exigerAdmin } from '/assets/js/layout.js';
+    import { $, toast } from '/assets/js/ui.js';
+
+    await exigerAdmin();
+    const champ = $('#url');
+    champ.value = location.origin + '/';
+
+    function matrice() {
+      const qr = window.qrcode(0, 'H');   // correction d'erreur élevée : reste lisible même abîmé
+      qr.addData(champ.value.trim());
+      qr.make();
+      return qr;
+    }
+
+    function svg(qr) {
+      const n = qr.getModuleCount(), m = 4, t = n + 2 * m;
+      let d = '';
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + m},${r + m}h1v1h-1z`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t} ${t}" shape-rendering="crispEdges">` +
+        `<rect width="${t}" height="${t}" fill="#fff"/><path d="${d}" fill="#0f0f11"/></svg>`;
+    }
+
+    function telecharger(blob, nom) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = nom;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    function afficher() {
+      try {
+        $('#qr').innerHTML = svg(matrice());
+        $('#lien-affiche').textContent = champ.value.trim();
+        $('#whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(
+          'Réservez votre stand au marché Fènou HIGBÉ : inscription, demande de stand et paiement en ligne. ' + champ.value.trim());
+      } catch { $('#qr').innerHTML = '<p class="muted">Adresse trop longue ou invalide.</p>'; }
+    }
+
+    champ.addEventListener('input', afficher);
+    $('#svg').addEventListener('click', () => telecharger(new Blob([svg(matrice())], { type: 'image/svg+xml' }), 'qr-fenou-expo.svg'));
+    $('#png').addEventListener('click', () => {
+      const qr = matrice(), n = qr.getModuleCount(), m = 4, px = Math.ceil(1200 / (n + 2 * m));
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = (n + 2 * m) * px;
+      const g = cv.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+      g.fillStyle = '#0f0f11';
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) g.fillRect((c + m) * px, (r + m) * px, px, px);
+      cv.toBlob((b) => telecharger(b, 'qr-fenou-expo.png'), 'image/png');
+    });
+    $('#copier').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(champ.value.trim()); toast('Lien copié.', 'ok'); }
+      catch { toast('Copie impossible : sélectionnez le lien à la main.'); }
+    });
+    afficher();
+  </script>
+</body>
+</html>
