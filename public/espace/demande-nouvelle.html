@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Nouvelle demande · Fènou HIGBÉ</title>
+  <title>Réserver un stand · Fènou HIGBÉ</title>
   <link rel="stylesheet" href="/assets/css/app.css">
   <meta name="robots" content="noindex">
   <link rel="manifest" href="/manifest.webmanifest">
@@ -16,115 +16,191 @@
   <script type="module" src="/assets/js/pwa.js"></script>
 </head>
 <body>
-  <main class="container stack" style="max-width:820px">
-    <h1>Nouvelle demande de stand</h1>
+  <main class="container stack" style="max-width:860px">
+    <div class="entete-page"><div><h1>Réserver un stand</h1><p>Quelques informations, votre stand, puis le contrat rempli à votre nom</p></div></div>
     <div id="zone"><p class="muted">Chargement…</p></div>
   </main>
 
   <script type="module">
     import * as api from '/assets/js/api.js';
     import { monterEntete, exigerExposant } from '/assets/js/layout.js';
-    import { $, $$, esc, fcfa, date, rendreContrat, toast } from '/assets/js/ui.js';
+    import { $, $$, esc, fcfa, date, toast, param, normaliserTelephone } from '/assets/js/ui.js';
+    import { ic } from '/assets/js/icones.js';
+    import { documentContrat, estModele } from '/assets/js/contrat.js';
 
-    await exigerExposant();
+    let profil = await exigerExposant();
     monterEntete('exposant');
     const zone = $('#zone');
 
-    const [ed] = await api.editionsOuvertes();
-    if (!ed) { zone.innerHTML = '<div class="alert">Les inscriptions ne sont pas ouvertes pour le moment.</div>'; throw 0; }
-    const [tarifs, contrat] = await Promise.all([api.tarifsEnVigueur(ed.id), api.contratEnVigueur(ed.id)]);
-    if (!tarifs.length || !contrat) { zone.innerHTML = '<div class="alert">Les demandes ne sont pas encore possibles pour cette édition.</div>'; throw 0; }
+    // Éditions ouvertes qui ont des tarifs en vigueur et un contrat publié
+    const offres = [];
+    for (const ed of await api.editionsOuvertes()) {
+      const [tarifs, contrat] = await Promise.all([api.tarifsEnVigueur(ed.id), api.contratEnVigueur(ed.id)]);
+      if (tarifs.length && contrat) offres.push({ ed, tarifs, contrat });
+    }
+    if (!offres.length) {
+      zone.innerHTML = '<div class="card vide">' + ic('calendrier') + '<p>Aucune édition n\'est ouverte aux réservations pour le moment.</p></div>';
+      throw 0;
+    }
 
-    const sites = ed.sites.filter((s) => tarifs.some((t) => t.site_id === s.id));
-    const familles = [...new Set(tarifs.map((t) => t.famille_nom))];
+    const CHAMPS = [
+      ['nom', 'Nom', true, 'family-name'], ['prenoms', 'Prénoms', true, 'given-name'],
+      ['entreprise', 'Nom de l\'entreprise ou de l\'activité', true, 'organization'], ['ville', 'Ville', false, 'address-level2'],
+      ['adresse', 'Adresse', false, 'street-address'], ['whatsapp', 'WhatsApp', false, 'tel'],
+      ['email', 'E-mail', false, 'email'], ['ifu', 'IFU', false, ''], ['rccm', 'RCCM', false, ''],
+    ];
+    let offre = offres.find((o) => o.ed.id === param('edition')) || offres[0];
 
     zone.innerHTML = `
       <form id="form" class="stack" novalidate>
-        <p class="muted">${esc(ed.nom)} · du ${date(ed.date_debut)} au ${date(ed.date_fin)}.
-          Une demande porte sur <strong>une seule catégorie</strong> de stand. Pour d'autres catégories, faites une autre demande.</p>
+        ${offres.length > 1 ? `
+        <fieldset class="stack"><legend><span class="etape-num">1</span> Pour quelle édition ?</legend>
+          <div class="choix editions">${offres.map((o) => `
+            <label><input type="radio" name="edition" value="${o.ed.id}" ${o === offre ? 'checked' : ''}>
+              <strong>${esc(o.ed.nom)}</strong>
+              <span class="small">${ic('calendrier')} du ${date(o.ed.date_debut)} au ${date(o.ed.date_fin)}</span>
+              ${o.ed.lieu ? `<span class="small muted">${ic('lieu')} ${esc(o.ed.lieu)}</span>` : ''}</label>`).join('')}
+          </div></fieldset>` : ''}
 
-        ${sites.length > 1 ? `<fieldset class="stack"><legend>1. Site</legend><div class="choix">
-          ${sites.map((s, i) => `<label><input type="radio" name="site" value="${s.id}" ${i ? '' : 'checked'}><strong>${esc(s.nom)}</strong></label>`).join('')}
-        </div></fieldset>` : `<input type="hidden" name="site" value="${sites[0].id}">`}
-
-        <fieldset class="stack">
-          <legend>${sites.length > 1 ? '2' : '1'}. Catégorie de stand</legend>
-          <div id="categories" class="stack"></div>
+        <fieldset class="stack"><legend><span class="etape-num">${offres.length > 1 ? 2 : 1}</span> Vos informations</legend>
+          <p class="small muted" style="margin:0">Elles figurent sur votre contrat et sont conservées pour vos prochaines réservations.</p>
+          <div class="form-grid two">${CHAMPS.map(([k, l, req, ac]) => `
+            <label${k === 'entreprise' ? ' class="pleine"' : ''}>${l}${req ? ' <span class="requis">*</span>' : ' <span class="hint">facultatif</span>'}
+              <input name="${k}" value="${esc(profil[k] || '')}" ${req ? 'required' : ''} ${ac ? `autocomplete="${ac}"` : ''}
+                ${k === 'email' ? 'type="email"' : k === 'whatsapp' ? 'type="tel" inputmode="tel"' : ''}></label>`).join('')}
+          </div>
         </fieldset>
 
-        <fieldset class="stack">
-          <legend>${sites.length > 1 ? '3' : '2'}. Nombre de stands</legend>
-          <div class="quantite">
-            <button type="button" class="btn secondary" data-q="-1" aria-label="Un stand de moins">−</button>
-            <input name="quantite" type="number" min="1" max="50" value="1" inputmode="numeric" aria-label="Nombre de stands">
-            <button type="button" class="btn secondary" data-q="1" aria-label="Un stand de plus">+</button>
+        <fieldset class="stack"><legend><span class="etape-num">${offres.length > 1 ? 3 : 2}</span> Votre stand</legend>
+          <div id="stand"></div>
+          <div class="form-grid two">
+            <label>Nombre de stands
+              <span class="quantite">
+                <button type="button" class="btn secondary" data-q="-1" aria-label="Un stand de moins">−</button>
+                <input name="quantite" type="number" min="1" max="50" value="1" inputmode="numeric" aria-label="Nombre de stands">
+                <button type="button" class="btn secondary" data-q="1" aria-label="Un stand de plus">+</button>
+              </span></label>
+          </div>
+          <div class="form-grid two">
+            <label>Produits ou services à vendre <span class="requis">*</span> <span class="hint">Un par ligne. Ils figurent à l'article 6 du contrat.</span>
+              <textarea name="produits" rows="4" placeholder="Jus naturels&#10;Pâtisseries"></textarea></label>
+            <label>Équipements que vous apporterez <span class="hint">Facultatif, un par ligne</span>
+              <textarea name="equipements" rows="4" placeholder="Réfrigérateur&#10;Présentoir"></textarea></label>
           </div>
           <label>Remarque pour l'organisation <span class="hint">Facultatif : besoins particuliers, préférences…</span>
             <textarea name="note" rows="2"></textarea></label>
+          <div class="total" aria-live="polite"><span id="detail">Choisissez une catégorie</span><span class="value" id="total">—</span></div>
         </fieldset>
 
-        <div class="total" aria-live="polite"><span id="detail">Choisissez une catégorie</span><span class="value" id="total">—</span></div>
-
-        <fieldset class="stack">
-          <legend>${sites.length > 1 ? '4' : '3'}. Contrat d'exploitation des stands</legend>
-          <p class="small muted">${esc(contrat.titre)} · version ${contrat.version}. Lisez-le jusqu'au bout avant de l'accepter.</p>
-          <div class="contrat" id="contrat" tabindex="0">${rendreContrat(contrat.contenu)}</div>
+        <fieldset class="stack contrat-imprime"><legend><span class="etape-num">${offres.length > 1 ? 4 : 3}</span> Votre contrat</legend>
+          <p class="small muted" style="margin:0">Il se remplit avec les informations ci-dessus. Relisez-le jusqu'au bout avant de l'accepter.</p>
+          <div class="contrat-cadre" id="contrat" tabindex="0"></div>
           <label class="check"><input type="checkbox" name="accord" id="accord">
-            <span>J'ai lu le contrat d'exploitation des stands (version ${contrat.version}) et j'en accepte toutes les conditions.</span></label>
+            <span id="texte-accord"></span></label>
         </fieldset>
 
-        <button class="btn block" type="submit">Envoyer ma demande</button>
+        <div id="erreur" class="alert erreur" hidden></div>
+        <button class="btn block lg" type="submit">${ic('valide')} Signer et envoyer ma demande</button>
       </form>`;
 
     const form = $('#form');
-    const siteCourant = () => form.site.value || form.querySelector('[name=site]:checked')?.value;
+    const siteCourant = () => form.querySelector('[name=site]:checked')?.value || form.querySelector('[name=site]')?.value;
+    const categorie = () => form.querySelector('[name=categorie]:checked');
+    const quantite = () => Math.min(50, Math.max(1, parseInt(form.quantite.value, 10) || 1));
 
-    function afficherCategories() {
-      const site = siteCourant();
-      const deja = form.querySelector('[name=categorie]:checked')?.value;
-      $('#categories').innerHTML = familles.map((f) => {
-        const liste = tarifs.filter((t) => t.site_id === site && t.famille_nom === f);
-        return liste.length ? `<div><h3 class="small muted">${esc(f)}</h3><div class="choix">${liste.map((t) => `
-          <label><input type="radio" name="categorie" value="${t.categorie_id}" data-prix="${t.prix_unitaire}"
-            data-nom="${esc(t.categorie_nom)}" ${t.categorie_id === deja ? 'checked' : ''}>
-            <strong>${esc(t.categorie_nom)}</strong>
-            <span>${fcfa(t.prix_unitaire)} <span class="muted small">/ stand</span></span><br>
-            <span class="muted small">${esc(t.libelle)} jusqu'au ${date(t.date_fin)}</span></label>`).join('')}</div></div>` : '';
-      }).join('');
-      calculer();
+    function afficherStand() {
+      const { ed, tarifs } = offre;
+      const sites = ed.sites.filter((s) => tarifs.some((t) => t.site_id === s.id));
+      const site = sites.some((s) => s.id === siteCourant()) ? siteCourant() : sites[0].id;
+      const deja = categorie()?.value;
+      const familles = [...new Set(tarifs.map((t) => t.famille_nom))];
+      $('#stand').innerHTML = `
+        ${sites.length > 1 ? `<div class="choix">${sites.map((s) => `<label><input type="radio" name="site" value="${s.id}" ${s.id === site ? 'checked' : ''}><strong>${esc(s.nom)}</strong></label>`).join('')}</div>`
+          : `<input type="hidden" name="site" value="${site}">`}
+        ${familles.map((f) => {
+          const liste = tarifs.filter((t) => t.site_id === site && t.famille_nom === f);
+          return liste.length ? `<div><h3 class="small muted">${esc(f)}</h3><div class="choix">${liste.map((t) => `
+            <label><input type="radio" name="categorie" value="${t.categorie_id}" data-prix="${t.prix_unitaire}"
+              data-nom="${esc(t.categorie_nom)}" ${t.categorie_id === deja ? 'checked' : ''}>
+              <strong>${esc(t.categorie_nom)}</strong>
+              <span>${fcfa(t.prix_unitaire)} <span class="muted small">/ stand</span></span><br>
+              <span class="muted small">${esc(t.libelle)} jusqu'au ${date(t.date_fin)}</span></label>`).join('')}</div></div>` : '';
+        }).join('')}`;
+      $('#texte-accord').textContent =
+        `J'ai lu le contrat d'exploitation des stands (version ${offre.contrat.version}) rempli à mon nom et j'en accepte toutes les conditions.`;
+      majTotal();
+      majContrat();
     }
 
-    function calculer() {
-      const c = form.querySelector('[name=categorie]:checked');
-      const q = Math.max(1, parseInt(form.quantite.value, 10) || 1);
+    function majTotal() {
+      const c = categorie();
       if (!c) { $('#detail').textContent = 'Choisissez une catégorie'; $('#total').textContent = '—'; return; }
-      $('#detail').textContent = `${q} × ${c.dataset.nom} à ${fcfa(c.dataset.prix)}`;
-      $('#total').textContent = fcfa(q * Number(c.dataset.prix));
+      $('#detail').textContent = `${quantite()} × ${c.dataset.nom} à ${fcfa(c.dataset.prix)}`;
+      $('#total').textContent = fcfa(quantite() * Number(c.dataset.prix));
     }
 
-    afficherCategories();
-    form.addEventListener('change', (e) => (e.target.name === 'site' ? afficherCategories() : calculer()));
-    form.quantite.addEventListener('input', calculer);
+    // Aperçu du contrat avec les valeurs saisies
+    function majContrat() {
+      const c = categorie();
+      const site = offre.ed.sites.find((s) => s.id === siteCourant());
+      const v = (k) => form[k]?.value.trim() || null;
+      const haut = $('#contrat').scrollTop;
+      $('#contrat').innerHTML = documentContrat(offre.contrat, {
+        nom: v('nom'), prenoms: v('prenoms'), entreprise: v('entreprise'), telephone: profil.telephone,
+        adresse: v('adresse'), ville: v('ville'), ifu: v('ifu'), rccm: v('rccm'),
+        edition: offre.ed.nom, lieu: offre.ed.lieu, date_debut: offre.ed.date_debut, date_fin: offre.ed.date_fin,
+        site: site?.nom, categorie: c?.dataset.nom, quantite: c ? quantite() : null,
+        prix_unitaire: c ? Number(c.dataset.prix) : null, montant: c ? quantite() * Number(c.dataset.prix) : null,
+        produits: v('produits'), equipements: v('equipements'), date: new Date().toISOString(),
+      });
+      $('#contrat').scrollTop = haut;
+      if (!estModele(offre.contrat)) $('#contrat').insertAdjacentHTML('afterbegin',
+        '<p class="small muted" style="margin:0 0 8px">Ce contrat n\'a pas encore de champs automatiques : vos informations figurent dans votre demande.</p>');
+    }
+
+    afficherStand();
+    let minuterie;
+    form.addEventListener('input', (e) => {
+      if (e.target.name === 'quantite') majTotal();
+      clearTimeout(minuterie);
+      minuterie = setTimeout(majContrat, 150);
+    });
+    form.addEventListener('change', (e) => {
+      if (e.target.name === 'edition') { offre = offres.find((o) => o.ed.id === e.target.value); $('#accord').checked = false; return afficherStand(); }
+      if (e.target.name === 'site') return afficherStand();
+      majTotal(); majContrat();
+    });
     $$('[data-q]').forEach((b) => b.addEventListener('click', () => {
-      form.quantite.value = Math.min(50, Math.max(1, (parseInt(form.quantite.value, 10) || 1) + Number(b.dataset.q)));
-      calculer();
+      form.quantite.value = Math.min(50, Math.max(1, quantite() + Number(b.dataset.q)));
+      majTotal(); majContrat();
     }));
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const c = form.querySelector('[name=categorie]:checked');
-      if (!c) return toast('Choisissez une catégorie de stand.', 'erreur');
-      if (!$('#accord').checked) return toast('Vous devez accepter le contrat pour envoyer votre demande.', 'erreur');
+      const erreur = $('#erreur');
+      erreur.hidden = true;
+      const manque = CHAMPS.filter(([k, , req]) => req && !form[k].value.trim()).map(([, l]) => l.toLowerCase());
+      const probleme =
+        manque.length ? `Complétez : ${manque.join(', ')}.` :
+        !categorie() ? 'Choisissez une catégorie de stand.' :
+        !form.produits.value.trim() ? 'Indiquez les produits ou services que vous vendrez.' :
+        !$('#accord').checked ? 'Cochez la case pour accepter le contrat.' : null;
+      if (probleme) { erreur.textContent = probleme; erreur.hidden = false; erreur.scrollIntoView({ block: 'center' }); return; }
+
       const bouton = form.querySelector('[type=submit]');
       bouton.disabled = true;
       try {
+        const champs = Object.fromEntries(CHAMPS.map(([k]) => [k, form[k].value]));
+        if (champs.whatsapp) champs.whatsapp = normaliserTelephone(champs.whatsapp);
+        if (CHAMPS.some(([k]) => (champs[k] || '') !== (profil[k] || ''))) profil = await api.majMonProfil(champs);
         const d = await api.creerDemande({
-          edition_id: ed.id, site_id: siteCourant(), categorie_id: c.value,
-          quantite: parseInt(form.quantite.value, 10), contrat_id: contrat.id, consentement: true, note: form.note.value,
+          edition_id: offre.ed.id, site_id: siteCourant(), categorie_id: categorie().value, quantite: quantite(),
+          contrat_id: offre.contrat.id, consentement: true, note: form.note.value,
+          produits: form.produits.value, equipements: form.equipements.value,
         });
         location.href = `/espace/demande.html?id=${d.id}&nouvelle=1`;
       } catch (err) {
-        toast(err.message, 'erreur');
+        erreur.textContent = err.message; erreur.hidden = false;
         bouton.disabled = false;
       }
     });

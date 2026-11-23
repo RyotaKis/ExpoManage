@@ -31,9 +31,10 @@
   </section>
 
   <main class="container stack">
-    <div id="bienvenue" class="alert ok" hidden>Votre compte est créé. Vous pouvez maintenant faire votre demande de stand.</div>
+    <div id="bienvenue" class="alert ok" hidden>Votre compte est créé ! Réservez votre stand : vous compléterez vos informations à cette étape.</div>
     <div class="tuiles" id="tuiles"></div>
     <section class="solde" id="solde"></section>
+    <section class="card parcours" id="parcours" hidden></section>
     <section class="stack">
       <h2>Mes demandes</h2>
       <div id="liste" class="liste-demandes"><p class="muted">Chargement…</p></div>
@@ -45,12 +46,13 @@
     import { monterEntete, exigerExposant } from '/assets/js/layout.js';
     import { $, esc, fcfa, date, badge, param } from '/assets/js/ui.js';
     import { ic } from '/assets/js/icones.js';
+    import { parcours, badgeNiveau } from '/assets/js/fidelite.js';
 
     const profil = await exigerExposant();
     monterEntete('exposant');
 
-    $('#bonjour').textContent = `Bonjour ${profil.prenoms} !`;
-    $('#entreprise').textContent = profil.entreprise;
+    $('#bonjour').textContent = profil.prenoms ? `Bonjour ${profil.prenoms} !` : 'Bienvenue !';
+    $('#entreprise').textContent = profil.entreprise || 'Votre espace exposant Fènou HIGBÉ';
     if (profil.logo_path) { const u = await api.urlFichier(profil.logo_path); if (u) { $('#logo').src = u; $('#logo').hidden = false; } }
     if (param('bienvenue')) $('#bienvenue').hidden = false;
 
@@ -79,15 +81,36 @@
       <div class="kpi reste"><div class="label">Reste à payer</div><div class="value">${fcfa(reste)}</div></div>
       ${enAttente ? `<div class="kpi"><div class="label">En cours de vérification</div><div class="value">${fcfa(enAttente)}</div></div>` : ''}` : '';
 
+    // Mon parcours : éditions, stands, niveau de fidélité
+    const p = parcours(demandes);
+    if (p.nbDemandes) {
+      const el = $('#parcours');
+      el.hidden = false;
+      el.innerHTML = `
+        <div class="row between">
+          <div><h2 style="margin:0">Mon parcours</h2><p class="small muted" style="margin:2px 0 0">${p.niveau.texte}</p></div>
+          ${badgeNiveau(p.niveau)}
+        </div>
+        <div class="parcours-chiffres">
+          <div><strong>${p.nbEditions}</strong><span>édition${p.nbEditions > 1 ? 's' : ''}</span></div>
+          <div><strong>${p.nbDemandes}</strong><span>réservation${p.nbDemandes > 1 ? 's' : ''}</span></div>
+          <div><strong>${p.nbStands}</strong><span>stand${p.nbStands > 1 ? 's' : ''}</span></div>
+          <div><strong>${fcfa(p.totalPaye).replace(' FCFA', '')}</strong><span>FCFA investis</span></div>
+        </div>
+        <ol class="frise">${p.editions.map((e) => `<li><strong>${esc(e.nom)}</strong><span>${e.stands} stand${e.stands > 1 ? 's' : ''}</span></li>`).join('')}
+          ${p.prochain ? `<li class="a-venir"><strong>Niveau « ${p.prochain.nom} »</strong><span>dans ${p.prochain.min - p.nbEditions} édition${p.prochain.min - p.nbEditions > 1 ? 's' : ''}</span></li>` : ''}</ol>`;
+    }
+
     $('#liste').innerHTML = demandes.length ? demandes.map((d) => {
       const pct = d.montant_du ? Math.min(100, Math.round((d.total_paye / d.montant_du) * 100)) : 100;
       return `
       <a class="card demande-carte" href="/espace/demande.html?id=${d.id}">
         <div class="row between">
-          <span class="numero">${esc(d.numero)} · ${esc(d.categorie_nom)} × ${d.quantite}</span>
+          <span class="puce-edition">${ic('calendrier')} ${esc(d.edition_nom)}</span>
           ${badge('demande', d.statut)}
         </div>
-        <p class="muted small" style="margin:4px 0 12px">${esc(d.edition_nom)}${d.site_nom !== 'Site principal' ? ' · ' + esc(d.site_nom) : ''} · demandée le ${date(d.created_at)}</p>
+        <p class="numero" style="margin:10px 0 2px">${esc(d.numero)} · ${esc(d.categorie_nom)} × ${d.quantite}</p>
+        <p class="muted small" style="margin:0 0 12px">${d.site_nom !== 'Site principal' ? esc(d.site_nom) + ' · ' : ''}demandée le ${date(d.created_at)}</p>
         <div class="row between small">
           <span>Payé <strong>${fcfa(d.total_paye)}</strong> sur ${fcfa(d.montant_du)}</span>
           ${badge('financier', d.statut_financier)}

@@ -176,7 +176,10 @@
       const base = c || (await api.contratEnVigueur(e.id));
       return dialogue({ titre: c ? `Modifier le brouillon (version ${c.version})` : 'Nouvelle version du contrat', corps: `
         <label>Titre <input name="titre" value="${esc(base?.titre || `Contrat d'exploitation des stands — ${e.nom}`)}"></label>
-        <label>Texte du contrat <span class="hint">« # » titre, « ## » article, ligne vide entre paragraphes, « - » pour les listes</span>
+        <label>Texte du contrat <span class="hint">« # » titre, « ## » article, ligne vide entre paragraphes, « - » pour les listes,
+          **gras**, *italique*, tableaux « | a | b | ». Champs remplis automatiquement : {{exposant}} {{entreprise}} {{telephone}}
+          {{edition}} {{lieu}} {{date_debut}} {{date_fin}} {{duree}} {{categorie}} {{quantite}} {{prix_unitaire}} {{montant}}
+          {{montant_lettres}} {{numero}} {{date}} ; seuls sur leur ligne : {{tableau_produits}} et {{signature}}.</span>
           <textarea name="contenu" rows="16" style="font-family:ui-monospace,monospace;font-size:.9rem">${esc(base?.contenu || '')}</textarea></label>`,
         soumettre: (f) => api.enregistrerContrat({ ...(c ? { id: c.id, version: c.version } : {}), edition_id: e.id,
           titre: f.titre.value.trim(), contenu: f.contenu.value }) });

@@ -129,8 +129,6 @@ function nettoyerProfil(p) {
 export async function inscription(profil, motDePasse, logo) {
   const tel = normaliserTelephone(profil.telephone);
   if (!telephoneValide(tel)) throw new Error('Numéro de téléphone invalide.');
-  if (!profil.nom?.trim() || !profil.prenoms?.trim() || !profil.entreprise?.trim())
-    throw new Error('Nom, prénoms et entreprise sont obligatoires.');
   if (!motDePasse || motDePasse.length < 6) throw new Error('Le mot de passe doit contenir au moins 6 caractères.');
   if (db.comptes.some((c) => c.identifiant === tel)) throw new Error('Ce numéro a déjà un compte. Connectez-vous.');
 
@@ -149,7 +147,7 @@ export async function inscription(profil, motDePasse, logo) {
   } else {
     e = {
       id: uid(), user_id: compte.id, telephone: tel, logo_path, notes_admin: null, actif: true,
-      telephone_secondaire: null, whatsapp: null, email: null, ifu: null, rccm: null, adresse: null,
+      nom: null, prenoms: null, entreprise: null, telephone_secondaire: null, whatsapp: null, email: null, ifu: null, rccm: null, adresse: null,
       ville: null, secteur: null, description: null,
       ...nettoyerProfil(profil), created_at: maintenant(), updated_at: maintenant(),
     };
@@ -207,7 +205,7 @@ export async function changerMotDePasse(ancien, nouveau) {
 /* ============================================================ Catalogue public */
 
 export async function editionsOuvertes() {
-  return copie(db.editions.filter((e) => e.statut === 'ouverte')
+  return copie(db.editions.filter((e) => e.statut === 'ouverte').sort((a, b) => a.date_debut.localeCompare(b.date_debut))
     .map((e) => ({ ...e, sites: db.sites.filter((s) => s.edition_id === e.id).sort((a, b) => a.ordre - b.ordre) })));
 }
 
@@ -267,8 +265,8 @@ function vue(d) {
   const paye = encaisse - rembourse;
   return {
     ...copie(d),
-    exposant_nom: `${e.nom} ${e.prenoms}`, entreprise: e.entreprise, telephone: e.telephone,
-    edition_nom: ed.nom, site_nom: s.nom, categorie_nom: c.nom, famille_nom: f.nom,
+    exposant_nom: [e.nom, e.prenoms].filter(Boolean).join(' '), entreprise: e.entreprise || e.telephone, telephone: e.telephone,
+    edition_nom: ed.nom, edition_prefixe: ed.prefixe, edition_date_debut: ed.date_debut, site_nom: s.nom, categorie_nom: c.nom, famille_nom: f.nom,
     total_paye: paye,
     montant_en_attente: attente.reduce((t, p) => t + p.montant, 0),
     nb_paiements_en_attente: attente.length,
@@ -279,11 +277,14 @@ function vue(d) {
   };
 }
 
-export async function creerDemande({ edition_id, site_id, categorie_id, quantite, contrat_id, consentement, note, exposant_id }) {
+export async function creerDemande({ edition_id, site_id, categorie_id, quantite, contrat_id, consentement, note, exposant_id, produits, equipements }) {
   let exposant;
   if (exposant_id) { exigerAdmin(); exposant = db.exposants.find((e) => e.id === exposant_id); }
   else exposant = exposantCourant();
-  if (!exposant) throw new Error('Complétez d\'abord votre profil exposant.');
+  if (!exposant) throw new Error('Profil exposant introuvable.');
+  if (!exposant.nom || !exposant.prenoms || !exposant.entreprise)
+    throw new Error('Complétez vos informations (nom, prénoms, entreprise) avant de réserver.');
+  if (!String(produits || '').trim()) throw new Error('Indiquez les produits ou services que vous proposerez sur votre stand.');
 
   quantite = Number(quantite);
   if (!Number.isInteger(quantite) || quantite < 1) throw new Error('Le nombre de stands doit être au moins 1.');
@@ -310,6 +311,7 @@ export async function creerDemande({ edition_id, site_id, categorie_id, quantite
     tarif_id: tarif.id, tarif_libelle: tarif.libelle, prix_unitaire: tarif.prix_unitaire,
     montant_brut: 0, remise_montant: 0, remise_motif: null, montant_du: 0,
     statut: 'en_attente_paiement', motif_annulation: null, note_exposant: note?.trim() || null, notes_admin: null,
+    produits: String(produits).trim(), equipements: equipements?.trim() || null,
     cree_par: session()?.compte_id, created_at: maintenant(), updated_at: maintenant(),
   };
   recalculer(d);
@@ -317,6 +319,14 @@ export async function creerDemande({ edition_id, site_id, categorie_id, quantite
   db.acceptations_contrat.push({
     id: uid(), demande_id: d.id, exposant_id: exposant.id, contrat_id: contrat.id, accepte_le: maintenant(),
     consentement: true, accepte_par: session()?.compte_id, adresse_ip: '(local)', navigateur: navigator.userAgent.slice(0, 300),
+    donnees: {
+      numero: d.numero, nom: exposant.nom, prenoms: exposant.prenoms, entreprise: exposant.entreprise,
+      telephone: exposant.telephone, adresse: exposant.adresse, ville: exposant.ville, ifu: exposant.ifu, rccm: exposant.rccm,
+      edition: ed.nom, lieu: ed.lieu, date_debut: ed.date_debut, date_fin: ed.date_fin,
+      site: db.sites.find((s) => s.id === site_id)?.nom, categorie: db.categories.find((c) => c.id === categorie_id)?.nom,
+      quantite, prix_unitaire: tarif.prix_unitaire, montant: tarif.prix_unitaire * quantite,
+      produits: d.produits, equipements: d.equipements, date: maintenant(),
+    },
   });
   journal('demandes', d.id, 'INSERT', null, d);
   sauver();
@@ -661,13 +671,15 @@ export async function listeExposants(f = {}) {
       return {
         ...copie(e), a_un_compte: !!e.user_id,
         nb_demandes: ds.length,
+        nb_editions: new Set(actives.map((d) => d.edition_id)).size,
+        nb_stands: actives.reduce((t, d) => t + d.quantite, 0),
         editions: [...new Set(ds.map((d) => d.edition_nom))].join(', '),
         montant_du: actives.reduce((t, d) => t + d.montant_du, 0),
         total_paye: actives.reduce((t, d) => t + d.total_paye, 0),
         reste_a_payer: actives.reduce((t, d) => t + Math.max(0, d.reste_a_payer), 0),
       };
     })
-    .sort((a, b) => a.entreprise.localeCompare(b.entreprise, 'fr'));
+    .sort((a, b) => (a.entreprise || '~').localeCompare(b.entreprise || '~', 'fr'));
 }
 
 export async function ficheExposant(id) {
@@ -766,8 +778,6 @@ export async function enregistrerEdition(champs) {
     e.prefixe = e.prefixe.trim().toUpperCase();
     if (db.editions.some((x) => x.prefixe === e.prefixe && x.id !== e.id)) throw new Error('Ce préfixe est déjà utilisé.');
     if (!e.date_debut || !e.date_fin || e.date_fin < e.date_debut) throw new Error('Dates invalides.');
-    if (e.statut === 'ouverte' && db.editions.some((x) => x.statut === 'ouverte' && x.id !== e.id))
-      throw new Error('Une autre édition est déjà ouverte aux inscriptions. Fermez-la d\'abord.');
     e.dernier_numero ??= 0;
     e.statut ??= 'brouillon';
     if (!db.sites.some((s) => s.edition_id === e.id)) db.sites.push({ id: uid(), edition_id: e.id, nom: 'Site principal', ordre: 1 });

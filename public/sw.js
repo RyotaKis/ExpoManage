@@ -2,7 +2,7 @@
 // - Pages : réseau d'abord, puis cache, puis page hors ligne.
 // - Fichiers statiques (CSS, JS, images, polices) : cache immédiat + mise à jour en arrière-plan.
 // - Les appels à l'API (Supabase) ne sont jamais mis en cache.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = `fenou-expo-${VERSION}`;
 // Les pages .html ne sont pas pré-chargées : l'hébergeur les redirige vers leur adresse sans .html,
 // et une réponse redirigée ne peut pas servir de page. Elles sont mises en cache à la première visite.
@@ -11,6 +11,7 @@ const SOCLE = [
   '/assets/css/app.css',
   '/assets/js/api.js', '/assets/js/api-local.js', '/assets/js/api-supabase.js', '/assets/js/config.js', '/assets/js/donnees-demo.js',
   '/assets/js/ui.js', '/assets/js/layout.js', '/assets/js/icones.js', '/assets/js/auth-visuel.js', '/assets/js/pwa.js',
+  '/assets/js/contrat.js', '/assets/js/fidelite.js', '/assets/js/faq.js',
   '/assets/icons/icon-192.png', '/assets/icons/icon-512.png', '/assets/icons/apple-touch-icon.png', '/assets/icons/favicon-48.png',
   '/assets/img/site/marche-aerien.jpg', '/assets/img/site/marche-nuit.jpg', '/assets/img/site/allees.jpg',
   '/manifest.webmanifest',

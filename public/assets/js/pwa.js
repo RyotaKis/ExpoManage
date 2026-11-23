@@ -32,3 +32,6 @@ window.addEventListener('beforeinstallprompt', (e) => {
   if (!masque) bouton();
 });
 window.addEventListener('appinstalled', () => document.querySelector('.installer-app')?.remove());
+
+// Bulle d'aide (FAQ) : pages publiques et espace exposant, pas l'administration
+if (!location.pathname.startsWith('/admin')) import('./faq.js');

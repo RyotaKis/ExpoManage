@@ -23,6 +23,12 @@
     </div>
     <div class="filtres card">
       <label>Recherche <input id="q" type="search" placeholder="Nom, entreprise ou téléphone"></label>
+      <label>Fidélité <select id="fidelite">
+        <option value="0">Tous les exposants</option><option value="1">Ayant déjà exposé</option>
+        <option value="2">Fidèles (2 éditions ou plus)</option><option value="3">Ambassadeurs (3 éditions ou plus)</option></select></label>
+      <label>Trier par <select id="tri">
+        <option value="nom">Nom de l'entreprise</option><option value="fidelite">Fidélité</option>
+        <option value="recent">Inscription la plus récente</option></select></label>
     </div>
     <p class="small muted" id="resume"></p>
     <div id="liste"></div>
@@ -33,6 +39,7 @@
     import { exigerAdmin } from '/assets/js/layout.js';
     import { $, $$, esc, fcfa, date, afficherTelephone, dialogue, boutonsExport, brancherExport, exporter } from '/assets/js/ui.js';
     import { champsExposant, lireExposant } from '/assets/js/admin-exposant.js';
+    import { niveauPour, badgeNiveau } from '/assets/js/fidelite.js';
 
     await exigerAdmin();
     let lignes = [];
@@ -42,23 +49,33 @@
       ['WhatsApp', (e) => e.whatsapp], ['Autre téléphone', (e) => e.telephone_secondaire], ['E-mail', (e) => e.email],
       ['IFU', (e) => e.ifu], ['RCCM', (e) => e.rccm], ['Ville', (e) => e.ville], ['Adresse', (e) => e.adresse], ['Secteur', (e) => e.secteur],
       ['Compte en ligne', (e) => (e.a_un_compte ? 'Oui' : 'Non')], ['Inscrit le', (e) => e.created_at.slice(0, 10)],
-      ['Nb demandes', (e) => e.nb_demandes], ['Éditions', (e) => e.editions],
+      ['Nb demandes', (e) => e.nb_demandes], ['Nb éditions', (e) => e.nb_editions], ['Nb stands', (e) => e.nb_stands],
+      ['Niveau', (e) => niveauPour(e.nb_editions).nom], ['Éditions', (e) => e.editions],
       ['Montant dû', (e) => e.montant_du], ['Payé', (e) => e.total_paye], ['Reste à payer', (e) => e.reste_a_payer],
     ], lignes, format));
 
     let minuterie;
     $('#q').addEventListener('input', () => { clearTimeout(minuterie); minuterie = setTimeout(afficher, 200); });
+    $('#fidelite').addEventListener('change', afficher);
+    $('#tri').addEventListener('change', afficher);
 
     async function afficher() {
-      lignes = await api.listeExposants({ q: $('#q').value });
-      $('#resume').textContent = `${lignes.length} exposant(s)`;
+      const min = Number($('#fidelite').value);
+      lignes = (await api.listeExposants({ q: $('#q').value })).filter((e) => e.nb_editions >= min);
+      const tri = $('#tri').value;
+      if (tri === 'fidelite') lignes.sort((a, b) => b.nb_editions - a.nb_editions || b.nb_stands - a.nb_stands || b.total_paye - a.total_paye);
+      if (tri === 'recent') lignes.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const fideles = lignes.filter((e) => e.nb_editions >= 2).length;
+      $('#resume').textContent = `${lignes.length} exposant(s) · ${fideles} fidèle(s) (2 éditions ou plus)`;
       $('#liste').innerHTML = lignes.length ? `<div class="table-wrap"><table>
-        <thead><tr><th>Entreprise</th><th>Contact</th><th>Téléphone</th><th class="num">Demandes</th><th>Éditions</th>
-          <th class="num">Reste à payer</th><th>Compte</th></tr></thead>
+        <thead><tr><th>Entreprise</th><th>Contact</th><th>Téléphone</th><th>Fidélité</th><th class="num">Éditions</th>
+          <th class="num">Stands</th><th class="num">Demandes</th><th class="num">Reste à payer</th><th>Compte</th></tr></thead>
         <tbody>${lignes.map((e) => `<tr class="lien" data-href="/admin/exposant.html?id=${e.id}">
-          <td><strong>${esc(e.entreprise)}</strong>${e.actif ? '' : ' <span class="badge">Désactivé</span>'}</td>
+          <td><strong>${e.entreprise ? esc(e.entreprise) : '<span class="muted">Profil à compléter</span>'}</strong>${e.actif ? '' : ' <span class="badge">Désactivé</span>'}</td>
           <td>${esc(e.nom)} ${esc(e.prenoms)}</td><td class="small">${esc(afficherTelephone(e.telephone))}</td>
-          <td class="num">${e.nb_demandes}</td><td class="small">${esc(e.editions || '—')}</td>
+          <td>${badgeNiveau(niveauPour(e.nb_editions))}</td>
+          <td class="num" title="${esc(e.editions || '')}">${e.nb_editions}</td>
+          <td class="num">${e.nb_stands}</td><td class="num">${e.nb_demandes}</td>
           <td class="num">${e.reste_a_payer ? fcfa(e.reste_a_payer) : '—'}</td>
           <td class="small">${e.a_un_compte ? 'En ligne' : '<span class="muted">Créé par l\'admin</span>'}</td></tr>`).join('')}
         </tbody></table></div>` : '<div class="card vide">Aucun exposant ne correspond.</div>';

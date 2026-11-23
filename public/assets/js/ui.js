@@ -86,15 +86,32 @@ export function lireFormulaire(form) {
 }
 
 // Rendu très simple du contrat : # titres, paragraphes séparés par une ligne vide, - listes
-export function rendreContrat(texte) {
-  return String(texte || '').split(/\n{2,}/).map((bloc) => {
-    const b = bloc.trim();
-    if (b.startsWith('### ')) return `<h4>${esc(b.slice(4))}</h4>`;
-    if (b.startsWith('## ')) return `<h3>${esc(b.slice(3))}</h3>`;
-    if (b.startsWith('# ')) return `<h2>${esc(b.slice(2))}</h2>`;
-    if (b.split('\n').every((l) => l.trim().startsWith('- ')))
-      return '<ul>' + b.split('\n').map((l) => `<li>${esc(l.trim().slice(2))}</li>`).join('') + '</ul>';
-    return `<p>${esc(b).replace(/\n/g, '<br>')}</p>`;
+// Mise en forme simple (titres #, listes -, tableaux |, **gras**, *italique*, ---).
+// `champ(nom)` (facultatif) renvoie le HTML d'un {{champ}} ; `bloc(nom)` celui d'un {{champ}} seul sur sa ligne.
+export function rendreContrat(texte, { champ, bloc } = {}) {
+  const enLigne = (t) => esc(t)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\{\{(\w+)\}\}/g, (m, nom) => (champ ? champ(nom) : `<span class="champ-modele">${nom}</span>`));
+  const cellules = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+  return String(texte || '').replace(/\r/g, '').split(/\n{2,}/).map((brut) => {
+    const b = brut.trim();
+    if (!b) return '';
+    const seul = b.match(/^\{\{(\w+)\}\}$/);
+    if (seul && bloc) { const h = bloc(seul[1]); if (h != null) return h; }
+    if (/^-{3,}$/.test(b)) return '<hr>';
+    if (b.startsWith('### ')) return `<h4>${enLigne(b.slice(4))}</h4>`;
+    if (b.startsWith('## ')) return `<h3>${enLigne(b.slice(3))}</h3>`;
+    if (b.startsWith('# ')) return `<h2>${enLigne(b.slice(2))}</h2>`;
+    const lignes = b.split('\n');
+    if (lignes.every((l) => l.trim().startsWith('- ')))
+      return '<ul>' + lignes.map((l) => `<li>${enLigne(l.trim().slice(2))}</li>`).join('') + '</ul>';
+    if (lignes.every((l) => l.trim().startsWith('|'))) {
+      const [tete, , ...corps] = lignes;
+      return `<div class="table-wrap"><table><thead><tr>${cellules(tete).map((c) => `<th>${enLigne(c)}</th>`).join('')}</tr></thead>
+        <tbody>${corps.map((l) => `<tr>${cellules(l).map((c) => `<td>${enLigne(c) || '&nbsp;'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    }
+    return `<p>${lignes.map((l) => enLigne(l.trim())).join('<br>')}</p>`;
   }).join('');
 }
 

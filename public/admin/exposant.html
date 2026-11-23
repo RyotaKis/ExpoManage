@@ -26,6 +26,7 @@
     import { exigerAdmin } from '/assets/js/layout.js';
     import { montantReste } from '/assets/js/admin-commun.js';
     import { champsExposant, lireExposant } from '/assets/js/admin-exposant.js';
+    import { parcours, badgeNiveau } from '/assets/js/fidelite.js';
     import { $, $$, esc, fcfa, date, dateHeure, badge, param, afficherTelephone, dialogue, toast } from '/assets/js/ui.js';
 
     const admin = await exigerAdmin();
@@ -35,6 +36,7 @@
       let x;
       try { x = await api.ficheExposant(id); } catch (e) { $('#zone').innerHTML = `<div class="alert erreur">${esc(e.message)}</div>`; return; }
       const { exposant: e, demandes } = x;
+      const fidel = parcours(demandes);
       const logo = e.logo_path && (await api.urlFichier(e.logo_path));
       const actives = demandes.filter((d) => d.statut !== 'annulee');
       const s = (k) => actives.reduce((t, d) => t + Math.max(0, d[k]), 0);
@@ -44,8 +46,9 @@
         <div class="row between">
           <div class="row">
             ${logo ? `<img class="logo-apercu" src="${logo}" alt="Logo">` : ''}
-            <div><h1 style="margin:0">${esc(e.entreprise)}</h1>
-              <p class="muted" style="margin:0">${esc(e.nom)} ${esc(e.prenoms)} · ${esc(afficherTelephone(e.telephone))}</p></div>
+            <div><h1 style="margin:0">${esc(e.entreprise || 'Profil à compléter')} ${badgeNiveau(fidel.niveau)}</h1>
+              <p class="muted" style="margin:0">${esc(e.nom)} ${esc(e.prenoms)} · ${esc(afficherTelephone(e.telephone))}
+                · ${fidel.nbEditions} édition(s), ${fidel.nbStands} stand(s), ${fcfa(fidel.totalPaye)} payés</p></div>
           </div>
           <div class="actions">
             <button class="btn secondary" data-action="modifier">Modifier la fiche</button>

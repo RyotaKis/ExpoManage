@@ -17,3 +17,7 @@ export const SUPABASE_ANON_KEY = 'sb_publishable_vc4_2mc6vmfY1zP-zEqZig_RIYWgcj1
 export const DOMAINE_IDENTIFIANT = 'tel.fenouhigbe.invalid';
 
 export const NOM_MARCHE = 'Fènou HIGBÉ';
+
+// Contact affiché dans la bulle d'aide (FAQ) : numéro WhatsApp de l'organisation, chiffres uniquement.
+// Laisser vide ('') pour masquer le bouton.
+export const CONTACT_WHATSAPP = '2290197351639';

@@ -95,8 +95,6 @@ export async function urlFichier(chemin) {
 export async function inscription(profil, motDePasse, logo) {
   const tel = normaliserTelephone(profil.telephone);
   if (!telephoneValide(tel)) throw new Error('Numéro de téléphone invalide.');
-  if (!profil.nom?.trim() || !profil.prenoms?.trim() || !profil.entreprise?.trim())
-    throw new Error('Nom, prénoms et entreprise sont obligatoires.');
   if (!motDePasse || motDePasse.length < 6) throw new Error('Le mot de passe doit contenir au moins 6 caractères.');
 
   const email = identifiant(tel);
@@ -179,7 +177,7 @@ export async function changerMotDePasse(ancien, nouveau) {
 /* ============================================================ Catalogue public */
 
 export async function editionsOuvertes() {
-  const eds = await q(sb.from('editions').select('*, sites(*)').eq('statut', 'ouverte'));
+  const eds = await q(sb.from('editions').select('*, sites(*)').eq('statut', 'ouverte').order('date_debut'));
   for (const e of eds) e.sites.sort((a, b) => a.ordre - b.ordre);
   return eds;
 }
@@ -195,13 +193,15 @@ export async function contratEnVigueur(editionId) {
 
 /* ============================================================ Demandes (exposant) */
 
-export async function creerDemande({ edition_id, site_id, categorie_id, quantite, contrat_id, consentement, note, exposant_id }) {
+export async function creerDemande({ edition_id, site_id, categorie_id, quantite, contrat_id, consentement, note, exposant_id, produits, equipements }) {
+  if (!String(produits || '').trim()) throw new Error('Indiquez les produits ou services que vous proposerez sur votre stand.');
   quantite = Number(quantite);
   if (!Number.isInteger(quantite) || quantite < 1) throw new Error('Le nombre de stands doit être au moins 1.');
   if (!consentement) throw new Error('Vous devez accepter le contrat d\'exploitation.');
   const d = await q(sb.rpc('creer_demande', {
     p_edition: edition_id, p_site: site_id, p_categorie: categorie_id, p_quantite: quantite,
     p_contrat: contrat_id, p_consentement: true, p_note: note || null, p_exposant: exposant_id || null,
+    p_produits: produits, p_equipements: equipements || null,
   }));
   return q(sb.from('v_demandes').select('*').eq('id', d.id).single());
 }
@@ -456,7 +456,7 @@ export async function listeExposants(f = {}) {
   await exigerAdmin();
   const [exposants, ds] = await Promise.all([
     q(sb.from('exposants').select('*').order('entreprise')),
-    q(sb.from('v_demandes').select('exposant_id, edition_nom, statut, montant_du, total_paye, reste_a_payer')),
+    q(sb.from('v_demandes').select('exposant_id, edition_id, edition_nom, statut, quantite, montant_du, total_paye, reste_a_payer')),
   ]);
   const s = (f.q || '').trim().toLowerCase();
   const stel = s.replace(/\D/g, '');
@@ -468,13 +468,15 @@ export async function listeExposants(f = {}) {
       const actives = l.filter((d) => d.statut !== 'annulee');
       return {
         ...e, a_un_compte: !!e.user_id, nb_demandes: l.length,
+        nb_editions: new Set(actives.map((d) => d.edition_id)).size,
+        nb_stands: actives.reduce((t, d) => t + d.quantite, 0),
         editions: [...new Set(l.map((d) => d.edition_nom))].join(', '),
         montant_du: actives.reduce((t, d) => t + Number(d.montant_du), 0),
         total_paye: actives.reduce((t, d) => t + Number(d.total_paye), 0),
         reste_a_payer: actives.reduce((t, d) => t + Math.max(0, d.reste_a_payer), 0),
       };
     })
-    .sort((a, b) => a.entreprise.localeCompare(b.entreprise, 'fr'));
+    .sort((a, b) => (a.entreprise || '~').localeCompare(b.entreprise || '~', 'fr'));
 }
 
 export async function ficheExposant(id) {

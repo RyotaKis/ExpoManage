@@ -32,44 +32,22 @@
     <section class="auth-visuel" id="visuel"></section>
     <section class="auth-form"><div>
       <h1>Créer mon compte</h1>
-      <p class="sous-titre">Déjà exposant lors d'une édition précédente ? <a class="lien-fort" href="/connexion.html">Connectez-vous</a> : vos informations sont conservées.</p>
+      <p class="sous-titre">Votre numéro et un mot de passe suffisent. Vous compléterez vos informations au moment de réserver votre stand.</p>
 
       <form id="form" class="form-grid" novalidate>
-        <div class="form-grid two">
-          <label>Nom <input name="nom" required autocomplete="family-name"></label>
-          <label>Prénoms <input name="prenoms" required autocomplete="given-name"></label>
-        </div>
         <label>Numéro de téléphone <span class="hint">Il vous servira à vous connecter.</span>
           <span class="champ"><span data-ic="telephone"></span><input name="telephone" type="tel" inputmode="tel" required autocomplete="tel" placeholder="01 97 00 00 00"></span>
         </label>
         <label>Mot de passe <span class="hint">6 caractères minimum</span>
           <span class="champ"><span data-ic="cadenas"></span><input name="mdp" type="password" required minlength="6" autocomplete="new-password"></span>
         </label>
-        <label>Nom de l'entreprise ou de l'activité
-          <span class="champ"><span data-ic="stand"></span><input name="entreprise" required autocomplete="organization"></span>
+        <label>Confirmez le mot de passe
+          <span class="champ"><span data-ic="cadenas"></span><input name="mdp2" type="password" required minlength="6" autocomplete="new-password"></span>
         </label>
-        <label>Logo <span class="hint">Facultatif · PNG, JPG ou WebP, 2 Mo maximum</span>
-          <input name="logo" type="file" accept="image/png,image/jpeg,image/webp">
-        </label>
-
-        <details class="card" style="padding:16px 18px;box-shadow:none">
-          <summary><strong>Informations complémentaires</strong> <span class="muted small">(facultatif)</span></summary>
-          <div class="form-grid two" style="margin-top:16px">
-            <label>WhatsApp <input name="whatsapp" type="tel" inputmode="tel"></label>
-            <label>Autre téléphone <input name="telephone_secondaire" type="tel" inputmode="tel"></label>
-            <label>E-mail <input name="email" type="email" autocomplete="email"></label>
-            <label>Ville <input name="ville" autocomplete="address-level2"></label>
-            <label>IFU <input name="ifu"></label>
-            <label>RCCM <input name="rccm"></label>
-            <label>Secteur d'activité <input name="secteur"></label>
-            <label>Adresse <input name="adresse" autocomplete="street-address"></label>
-          </div>
-          <label style="margin-top:16px">Présentation de votre activité <textarea name="description" rows="3"></textarea></label>
-        </details>
-
         <div id="erreur" class="alert erreur" hidden></div>
         <button class="btn block lg" type="submit">Créer mon compte <span data-ic="fleche"></span></button>
       </form>
+      <p class="small muted" style="margin-top:20px">Déjà exposant lors d'une édition précédente ? <a class="lien-fort" href="/connexion.html">Connectez-vous</a> : vos informations sont conservées.</p>
       <p class="small muted" style="margin-top:24px;text-align:center"><a href="/" style="color:inherit">← Retour à l'accueil</a></p>
     </div></section>
   </div>
@@ -90,17 +68,15 @@
       erreur.hidden = true;
       const v = lireFormulaire(form);
       const probleme =
-        !v.nom || !v.prenoms ? 'Indiquez votre nom et vos prénoms.' :
         !telephoneValide(v.telephone) ? 'Numéro de téléphone invalide.' :
         (v.mdp || '').length < 6 ? 'Le mot de passe doit contenir au moins 6 caractères.' :
-        !v.entreprise ? 'Indiquez le nom de votre entreprise ou activité.' : null;
+        v.mdp !== v.mdp2 ? 'Les deux mots de passe ne sont pas identiques.' : null;
       if (probleme) { erreur.textContent = probleme; erreur.hidden = false; return; }
 
       const bouton = form.querySelector('[type=submit]');
       bouton.disabled = true;
       try {
-        const { mdp, ...profil } = v;
-        await api.inscription(profil, mdp, form.logo.files[0]);
+        await api.inscription({ telephone: v.telephone }, v.mdp);
         location.href = '/espace/?bienvenue=1';
       } catch (err) {
         erreur.textContent = err.message;

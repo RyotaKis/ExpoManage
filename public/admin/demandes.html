@@ -68,7 +68,7 @@
         <thead><tr><th>N°</th><th>Exposant</th><th>Catégorie</th><th class="num">Stands</th><th class="num">Dû</th>
           <th class="num">Payé</th><th class="num">Reste</th><th>Statut</th><th>Stand(s)</th></tr></thead>
         <tbody>${lignes.map((d) => `<tr class="lien" data-href="/admin/demande.html?id=${d.id}">
-          <td><strong>${esc(d.numero)}</strong><br><span class="small muted">${date(d.created_at)}</span></td>
+          <td><strong>${esc(d.numero)}</strong><br><span class="puce-edition claire" title="${esc(d.edition_nom)}">${esc(d.edition_nom)}</span><br><span class="small muted">${date(d.created_at)}</span></td>
           <td>${esc(d.entreprise)}<br><span class="small muted">${esc(d.exposant_nom)}</span></td>
           <td>${esc(d.categorie_nom)}</td><td class="num">${d.quantite}</td>
           <td class="num">${fcfa(d.montant_du)}</td><td class="num">${fcfa(d.total_paye)}${d.montant_en_attente ? `<br><span class="small muted">+${fcfa(d.montant_en_attente)} à valider</span>` : ''}</td>

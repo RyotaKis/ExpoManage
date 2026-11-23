@@ -63,9 +63,15 @@ export async function donneesDemo(hacher) {
     publie_le: t, actif: true, fichier_path: null, created_at: t,
     contenu: [
       '# Contrat d\'exploitation des stands',
-      'TEXTE DE DÉMONSTRATION. Le contrat réel sera saisi par l\'administration.',
+      '*TEXTE DE DÉMONSTRATION. Le contrat réel est saisi par l\'administration.*',
+      'Entre **l\'Organisateur** du marché Fènou HIGBÉ,',
+      '**ET**',
+      'M./Mme : {{exposant}}\nPromoteur(trice) de : {{entreprise}}\nTéléphone : {{telephone}}',
       '## Article 1 — Objet',
-      'Le présent contrat fixe les conditions dans lesquelles l\'exposant occupe et exploite un ou plusieurs stands pendant le marché Fènou HIGBÉ.',
+      'Le présent contrat fixe les conditions dans lesquelles l\'Entrepreneur exploite {{quantite}} stand(s) « {{categorie}} » '
+        + 'pendant {{edition}}, du {{date_debut}} au {{date_fin}} ({{duree}}), pour la somme de {{montant_lettres}} ({{montant}}) francs CFA.',
+      '## Article 1 bis — Produits et équipements déclarés',
+      '{{tableau_produits}}',
       '## Article 2 — Attribution des emplacements',
       'Les emplacements sont attribués exclusivement par l\'organisation, en fonction des disponibilités et de l\'organisation générale du marché.',
       '## Article 3 — Paiement',
@@ -74,6 +80,9 @@ export async function donneesDemo(hacher) {
       '- Respecter les horaires d\'ouverture et de fermeture.\n- Maintenir le stand propre.\n- Respecter les consignes de sécurité.',
       '## Article 5 — Annulation',
       'Les conditions d\'annulation et de remboursement sont définies par l\'organisation.',
+      '---',
+      'Fait à Cotonou, le {{date}}.',
+      '{{signature}}',
     ].join('\n\n'),
   }];
 

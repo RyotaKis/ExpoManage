@@ -25,6 +25,8 @@
     import * as api from '/assets/js/api.js';
     import { monterEntete, exigerExposant } from '/assets/js/layout.js';
     import { $, esc, fcfa, date, dateHeure, badge, param, LIBELLES, rendreContrat, aujourdhui, toast } from '/assets/js/ui.js';
+    import { documentContrat } from '/assets/js/contrat.js';
+    import { ic } from '/assets/js/icones.js';
 
     await exigerExposant();
     monterEntete('exposant');
@@ -41,6 +43,7 @@
         ${param('nouvelle') ? `<div class="alert ok">Votre demande <strong>${esc(d.numero)}</strong> est enregistrée.
           Effectuez votre paiement puis déclarez-le ci-dessous : votre demande sera validée dès le premier paiement vérifié.</div>` : ''}
 
+        <span class="puce-edition">${ic('calendrier')} ${esc(d.edition_nom)}</span>
         <div class="row between">
           <h1 style="margin:0">Demande ${esc(d.numero)}</h1>
           ${badge('demande', d.statut)}
@@ -53,6 +56,8 @@
             <dt>Nombre de stands</dt><dd>${d.quantite}</dd>
             <dt>Prix unitaire</dt><dd>${fcfa(d.prix_unitaire)} <span class="muted small">(${esc(d.tarif_libelle)})</span></dd>
             ${d.remise_montant ? `<dt>Remise</dt><dd>− ${fcfa(d.remise_montant)}${d.remise_motif ? ` <span class="muted small">(${esc(d.remise_motif)})</span>` : ''}</dd>` : ''}
+            ${d.produits ? `<dt>Produits / services</dt><dd>${esc(d.produits).replace(/\n/g, '<br>')}</dd>` : ''}
+            ${d.equipements ? `<dt>Équipements</dt><dd>${esc(d.equipements).replace(/\n/g, '<br>')}</dd>` : ''}
             <dt>Demandée le</dt><dd>${dateHeure(d.created_at)}</dd>
             <dt>Stand(s) attribué(s)</dt><dd>${d.stands_attribues ? esc(d.stands_attribues) : '<span class="muted">Pas encore attribué</span>'}</dd>
             ${d.statut === 'annulee' ? `<dt>Annulation</dt><dd>${esc(d.motif_annulation || 'Demande annulée')}</dd>` : ''}
@@ -111,12 +116,21 @@
           </form>
         </section>` : ''}
 
-        <section class="card stack">
-          <h2>Contrat accepté</h2>
-          ${acceptation ? `<p class="small">Version ${contrat.version} acceptée le <strong>${dateHeure(acceptation.accepte_le)}</strong>.</p>
-            <details><summary>Lire le contrat</summary><div class="contrat" style="margin-top:8px">${rendreContrat(contrat.contenu)}</div></details>`
+        <section class="stack contrat-imprime" id="contrat">
+          <div class="row between">
+            <h2 style="margin:0">Mon contrat</h2>
+            ${acceptation ? `<button class="btn secondary sm" type="button" data-imprimer>${ic('contrat')} Imprimer / PDF</button>` : ''}
+          </div>
+          ${acceptation ? `<p class="small muted" style="margin:0">Version ${contrat.version} signée électroniquement le <strong>${dateHeure(acceptation.accepte_le)}</strong>.</p>
+            <details ${param('nouvelle') ? '' : 'open'}><summary>Afficher le contrat</summary><div style="margin-top:10px">
+              ${documentContrat(contrat, { ...(acceptation.donnees || {}), numero: d.numero, date: acceptation.accepte_le }, { signe: true })}</div></details>`
             : '<p class="muted">Aucune acceptation enregistrée.</p>'}
         </section>`;
+
+      zone.querySelector('[data-imprimer]')?.addEventListener('click', () => {
+        zone.querySelector('#contrat details').open = true;
+        window.print();
+      });
 
       zone.querySelectorAll('[data-fichier]').forEach((b) => b.addEventListener('click', async () => {
         const u = await api.urlFichier(b.dataset.fichier);
